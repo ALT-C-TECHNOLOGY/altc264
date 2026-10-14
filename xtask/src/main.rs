@@ -407,6 +407,18 @@ fn keep_only_bitstreams(dir: &Path) {
     }
 }
 
+/// Makes `link` name the file `target` (for reference decoders that cannot
+/// take paths with spaces): a symbolic link on Unix, else a hard link, else
+/// a copy.
+fn link_input(target: &Path, link: &Path) -> Result {
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(target, link).map_err(|e| e.to_string());
+    #[cfg(not(unix))]
+    fs::hard_link(target, link)
+        .or_else(|_| fs::copy(target, link).map(|_| ()))
+        .map_err(|e| e.to_string())
+}
+
 fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(rd) = fs::read_dir(dir) else { return };
     for e in rd.flatten() {
@@ -734,7 +746,7 @@ fn jm_conformance_yuv(name: &str, stream: &Path) -> Result<PathBuf> {
     let link = dir.join("input.264");
     let _ = fs::remove_file(&link);
     let abs = fs::canonicalize(stream).map_err(|e| e.to_string())?;
-    std::os::unix::fs::symlink(&abs, &link).map_err(|e| e.to_string())?;
+    link_input(&abs, &link)?;
     let log = File::create(dir.join("jm.log")).map_err(|e| e.to_string())?;
     let st = Command::new(tool("ldecod")?)
         .current_dir(&dir)
@@ -786,7 +798,7 @@ fn jm_reference(clip: &Path, frame_size: usize, num_views: usize) -> Result<Vec<
     let link = dir.join("input.264");
     let _ = fs::remove_file(&link);
     let abs = fs::canonicalize(clip).map_err(|e| e.to_string())?;
-    std::os::unix::fs::symlink(&abs, &link).map_err(|e| e.to_string())?;
+    link_input(&abs, &link)?;
     let log = File::create(dir.join("jm.log")).map_err(|e| e.to_string())?;
     let st = Command::new(tool("ldecod")?)
         .current_dir(&dir)
@@ -1194,7 +1206,7 @@ fn jm_all_views(stream: &Path, dir: &Path, num_views: usize) -> Result<Vec<PathB
     } else {
         let link = dir.join("input.264");
         let _ = fs::remove_file(&link);
-        std::os::unix::fs::symlink(&abs, &link).map_err(|e| e.to_string())?;
+        link_input(&abs, &link)?;
         let st = Command::new(tool("ldecod")?)
             .current_dir(dir)
             .arg("-d")

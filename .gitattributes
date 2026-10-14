@@ -1,0 +1,3 @@
+# The same LF line endings on every checkout (Windows included): the C
+# header is compared byte for byte, and shell scripts need LF.
+* text=auto eol=lf

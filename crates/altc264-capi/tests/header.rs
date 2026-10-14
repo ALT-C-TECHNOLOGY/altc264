@@ -20,9 +20,11 @@ fn header_is_current() {
         std::fs::write(&path, &out).unwrap();
         return;
     }
+    // Line endings aside: a checkout may convert them (CRLF on Windows).
+    let lf = |b: &[u8]| -> Vec<u8> { b.iter().copied().filter(|&c| c != b'\r').collect() };
     let have = std::fs::read(&path).unwrap_or_default();
     assert!(
-        have == out,
+        lf(&have) == lf(&out),
         "include/altc264.h is stale: run ALTC264_BLESS=1 cargo test -p altc264-capi --test header"
     );
 }
