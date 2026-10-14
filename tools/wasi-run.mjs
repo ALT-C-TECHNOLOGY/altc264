@@ -13,7 +13,8 @@ const wasi = new WASI({
   version: 'preview1',
   args: [wasmPath, ...args],
   env: { ALTC_THREADS: env.ALTC_THREADS ?? '0' },
-  preopens: { '/work': process.cwd() },
+  // /dev too, so `decode ... /dev/null` discards frames as natively (benchmarks).
+  preopens: { '/work': process.cwd(), '/dev': '/dev' },
   returnOnExit: true,
 });
 const module = await WebAssembly.compile(await readFile(wasmPath));

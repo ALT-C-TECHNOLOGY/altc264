@@ -1,7 +1,7 @@
 #!/bin/sh
 # Adds the libaltc264 decoder wrapper to an FFmpeg source tree (idempotent).
 #   integrations/ffmpeg/apply.sh /path/to/ffmpeg
-# Tested with FFmpeg 8.1.3. It edits configure and the libavcodec build files
+# Tested with FFmpeg 8.1.3 and 9.0.2. It edits configure and the libavcodec build files
 # next to the libdav1d entries, so other versions may need those edits by hand.
 set -eu
 src=$(cd "$(dirname "$0")" && pwd)

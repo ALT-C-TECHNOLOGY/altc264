@@ -74,3 +74,14 @@ index a60eeb9..e818c76 100644
    MyIterator find( const T& rcT ) {  return std::find( this->begin(), this->end(), rcT ); } // leszek
  };
  
+diff --git a/JMVC/H264Extension/src/lib/H264AVCVideoIoLib/ReadBitstreamFile.cpp b/JMVC/H264Extension/src/lib/H264AVCVideoIoLib/ReadBitstreamFile.cpp
+index 5a07aa4..4d29c11 100644
+--- a/JMVC/H264Extension/src/lib/H264AVCVideoIoLib/ReadBitstreamFile.cpp
++++ b/JMVC/H264Extension/src/lib/H264AVCVideoIoLib/ReadBitstreamFile.cpp
+@@ -1,3 +1,6 @@
++#include <cstdio>
++#include <cstring>
++#include <cstdlib>
+ #include "ReadBitstreamFile.h"
+ 
+ 

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="386" viewBox="0 0 960 386" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<defs><linearGradient id="brand" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#B7F542"/><stop offset="1" stop-color="#3EE0B8"/></linearGradient></defs>
+<style>.t{font-size:18px;font-weight:600;fill:#0a0e12}.h{font-size:14px;font-weight:600;fill:#0a0e12}.l{font-size:13px;fill:#0a0e12}.v{font-size:12px;font-weight:600;fill:#0a0e12}.m{font-size:12px;fill:#5b6470}.r{font-size:13px;font-weight:700;fill:#2fbf8f}</style>
+<rect width="960" height="386" rx="12" fill="#ffffff"/>
+<text x="24" y="34" class="t">Big Buck Bunny 1080p: frames per second (higher is faster)</text>
+<rect x="24" y="48" width="12" height="12" rx="2" fill="url(#brand)"/><text x="42" y="58" class="l">altc264 0.1.0</text>
+<rect x="150" y="48" width="12" height="12" rx="2" fill="#b9c0c8"/><text x="168" y="58" class="l">FFmpeg 9.0.2</text>
+<line x1="24" x2="936" y1="156" y2="156" stroke="#e3e6ea"/>
+<text x="24" y="137" class="l">Apple M4 Pro</text>
+<line x1="24" x2="936" y1="202" y2="202" stroke="#e3e6ea"/>
+<text x="24" y="183" class="l">Intel Core Ultra X9 388H</text>
+<line x1="24" x2="936" y1="248" y2="248" stroke="#e3e6ea"/>
+<text x="24" y="229" class="l">AMD Ryzen AI 9 HX 370</text>
+<line x1="24" x2="936" y1="294" y2="294" stroke="#e3e6ea"/>
+<text x="24" y="275" class="l">Qualcomm QCM6490</text>
+<line x1="24" x2="936" y1="340" y2="340" stroke="#e3e6ea"/>
+<text x="24" y="321" class="l">WebAssembly (SIMD128)</text>
+<text x="210" y="96" class="h">1 thread</text>
+<rect x="210" y="116" width="235.0" height="15" rx="3" fill="url(#brand)"/>
+<text x="451.0" y="128" class="v">132</text>
+<rect x="210" y="135" width="194.6" height="15" rx="3" fill="#b9c0c8"/>
+<text x="410.6" y="147" class="m">110</text>
+<text x="540" y="137" text-anchor="end" class="r">1.21×</text>
+<rect x="210" y="162" width="192.8" height="15" rx="3" fill="url(#brand)"/>
+<text x="408.8" y="174" class="v">109</text>
+<rect x="210" y="181" width="203.6" height="15" rx="3" fill="#b9c0c8"/>
+<text x="419.6" y="193" class="m">115</text>
+<text x="540" y="183" text-anchor="end" class="m">0.95×</text>
+<rect x="210" y="208" width="169.7" height="15" rx="3" fill="url(#brand)"/>
+<text x="385.7" y="220" class="v">96</text>
+<rect x="210" y="227" width="192.6" height="15" rx="3" fill="#b9c0c8"/>
+<text x="408.6" y="239" class="m">109</text>
+<text x="540" y="229" text-anchor="end" class="m">0.88×</text>
+<rect x="210" y="254" width="91.9" height="15" rx="3" fill="url(#brand)"/>
+<text x="307.9" y="266" class="v">52</text>
+<rect x="210" y="273" width="87.1" height="15" rx="3" fill="#b9c0c8"/>
+<text x="303.1" y="285" class="m">49</text>
+<text x="540" y="275" text-anchor="end" class="r">1.05×</text>
+<rect x="210" y="300" width="137.8" height="15" rx="3" fill="url(#brand)"/>
+<text x="353.8" y="312" class="v">78</text>
+<rect x="210" y="319" width="110.8" height="15" rx="3" fill="#b9c0c8"/>
+<text x="326.8" y="331" class="m">62</text>
+<text x="540" y="321" text-anchor="end" class="r">1.24×</text>
+<text x="580" y="96" class="h">8 threads</text>
+<rect x="580" y="116" width="235.0" height="15" rx="3" fill="url(#brand)"/>
+<text x="821.0" y="128" class="v">578</text>
+<rect x="580" y="135" width="150.4" height="15" rx="3" fill="#b9c0c8"/>
+<text x="736.4" y="147" class="m">370</text>
+<text x="910" y="137" text-anchor="end" class="r">1.56×</text>
+<rect x="580" y="162" width="146.5" height="15" rx="3" fill="url(#brand)"/>
+<text x="732.5" y="174" class="v">360</text>
+<rect x="580" y="181" width="117.7" height="15" rx="3" fill="#b9c0c8"/>
+<text x="703.7" y="193" class="m">290</text>
+<text x="910" y="183" text-anchor="end" class="r">1.24×</text>
+<rect x="580" y="208" width="166.6" height="15" rx="3" fill="url(#brand)"/>
+<text x="752.6" y="220" class="v">410</text>
+<rect x="580" y="227" width="142.7" height="15" rx="3" fill="#b9c0c8"/>
+<text x="728.7" y="239" class="m">351</text>
+<text x="910" y="229" text-anchor="end" class="r">1.17×</text>
+<rect x="580" y="254" width="77.7" height="15" rx="3" fill="url(#brand)"/>
+<text x="663.7" y="266" class="v">191</text>
+<rect x="580" y="273" width="68.0" height="15" rx="3" fill="#b9c0c8"/>
+<text x="654.0" y="285" class="m">167</text>
+<text x="910" y="275" text-anchor="end" class="r">1.14×</text>
+<text x="580" y="319" class="m">not supported yet</text>
+</svg>

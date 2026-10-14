@@ -1,9 +1,10 @@
 #!/bin/sh
 # Builds the reference decoders into third_party/install/bin: JM (ldecod),
 # the ITU-T/ISO reference, and JMVC for MVC streams with more than two
-# views. Only `cargo xtask conformance-manifest`, `conformance-run` and
-# `verify` need them; `conformance-check` does not. Works on macOS and
-# Linux (x86_64, aarch64). Re-run after changing a pin.
+# views, plus JMVC's encoder for the MVC benchmark clip. Only
+# `cargo xtask conformance-manifest`, `conformance-run`, `verify` and
+# tools/bench/make-mvc-sample.sh need them; `conformance-check` does not.
+# Works on macOS and Linux (x86_64, aarch64). Re-run after changing a pin.
 set -eu
 
 JM_TAG=JM-19.1
@@ -41,11 +42,15 @@ cp "$tp/jm/cfg/decoder.cfg" "$inst/bin/decoder.cfg"
 echo "== jmvc (MVC reference decoder for streams with more than two views)"
 [ -d "$tp/jmvc" ] && git -C "$tp/jmvc" checkout -q -- .
 fetch jmvc https://vcgit.hhi.fraunhofer.de/jvet/jmvc.git "$JMVC_TAG"
-# Build fixes for current compilers and macOS; no decoding changes.
+# Build fixes for current compilers (clang on macOS, GCC on Linux); no decoding changes.
 git -C "$tp/jmvc" apply "$root/tools/patches/jmvc-8.5.patch"
 jl="$tp/jmvc/JMVC/H264Extension/build/linux"
-for d in lib/H264AVCVideoIoLib lib/H264AVCCommonLib lib/H264AVCDecoderLib test/H264AVCDecoderLibTest; do
+for d in lib/H264AVCVideoIoLib lib/H264AVCCommonLib lib/H264AVCDecoderLib test/H264AVCDecoderLibTest \
+	lib/H264AVCEncoderLib test/H264AVCEncoderLibTest test/MVCBitStreamAssembler; do
 	make -s -C "$jl/$d" release -j"$jobs" >/dev/null 2>&1
 done
 cp "$tp/jmvc/bin/H264AVCDecoderLibTestStatic" "$inst/bin/jmvc-decoder"
+# The encoder and assembler make the MVC benchmark clip (tools/bench/make-mvc-sample.sh).
+cp "$tp/jmvc/bin/H264AVCEncoderLibTestStatic" "$inst/bin/jmvc-encoder"
+cp "$tp/jmvc/bin/MVCBitStreamAssemblerStatic" "$inst/bin/jmvc-assembler"
 ls "$inst/bin"
