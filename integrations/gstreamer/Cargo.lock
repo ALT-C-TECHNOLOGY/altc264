@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "altc264"
-version = "0.0.1"
+version = "0.1.0"
 
 [[package]]
 name = "atomic_refcell"
@@ -177,7 +177,7 @@ dependencies = [
 
 [[package]]
 name = "gst-plugin-altc264"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "altc264",
  "gstreamer",

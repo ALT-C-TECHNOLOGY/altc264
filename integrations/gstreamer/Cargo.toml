@@ -1,6 +1,6 @@
 [package]
 name = "gst-plugin-altc264"
-version = "0.0.1"
+version = "0.1.0"
 edition = "2024"
 license = "MIT"
 description = "GStreamer H.264 and MVC (stereo 3D) decoder element based on altc264"
