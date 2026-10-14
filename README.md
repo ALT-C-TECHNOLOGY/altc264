@@ -123,7 +123,7 @@ as described in [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-See [LICENSE.md](LICENSE.md). The FFmpeg wrapper in
+See [LICENSE](LICENSE). The FFmpeg wrapper in
 `integrations/ffmpeg` is LGPL-2.1-or-later, like FFmpeg.
 
 The licence covers this code only. H.264 is subject to patents in many

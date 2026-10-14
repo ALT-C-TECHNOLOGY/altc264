@@ -12,7 +12,7 @@ repository = "https://github.com/ALT-C-TECHNOLOGY/altc264"
 homepage = "https://github.com/ALT-C-TECHNOLOGY/altc264"
 
 [workspace.dependencies]
-altc264 = { path = "crates/altc264" }
+altc264 = { path = "crates/altc264", version = "0.1.0" }
 
 [profile.release]
 lto = "fat"
