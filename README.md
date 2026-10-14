@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/altc-wordmark-dark.svg">
-    <img alt="altc" src=".github/assets/altc-wordmark-light.svg" width="260">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ALT-C-TECHNOLOGY/altc264/main/.github/assets/altc-wordmark-dark.svg">
+    <img alt="altc" src="https://raw.githubusercontent.com/ALT-C-TECHNOLOGY/altc264/main/.github/assets/altc-wordmark-light.svg" width="260">
   </picture>
 </p>
 
@@ -15,7 +15,7 @@
   <a href="https://github.com/ALT-C-TECHNOLOGY/altc264/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/ALT-C-TECHNOLOGY/altc264/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/ALT-C-TECHNOLOGY/altc264/actions/workflows/nightly.yml"><img alt="Conformance" src="https://github.com/ALT-C-TECHNOLOGY/altc264/actions/workflows/nightly.yml/badge.svg"></a>
   <a href="https://codecov.io/gh/ALT-C-TECHNOLOGY/altc264"><img alt="Coverage" src="https://codecov.io/gh/ALT-C-TECHNOLOGY/altc264/graph/badge.svg"></a>
-  <a href="LICENSE"><img alt="Licence: MIT" src="https://img.shields.io/badge/licence-MIT-blue.svg"></a>
+  <a href="https://github.com/ALT-C-TECHNOLOGY/altc264/blob/main/LICENSE"><img alt="Licence: MIT" src="https://img.shields.io/badge/licence-MIT-blue.svg"></a>
   <img alt="MSRV 1.88" src="https://img.shields.io/badge/MSRV-1.88-orange.svg">
 </p>
 
@@ -53,15 +53,15 @@ Other targets build with the portable fallback.
 
 **All 270** ITU-T H.264.1 conformance streams are bit-exact on every CPU
 backend, in every view the reference decoders can produce. The expected output of each stream is in
-[`conformance/manifest.json`](conformance/manifest.json).
+[`conformance/manifest.json`](https://github.com/ALT-C-TECHNOLOGY/altc264/blob/main/conformance/manifest.json).
 
 ## Performance
 
 Against FFmpeg 9.0.2's H.264 decoder, on this public 1080p clip of [Big Buck Bunny](https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_30MB.mp4).
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/benchmark-dark.svg">
-  <img alt="Frames per second decoding Big Buck Bunny 1080p, altc264 against FFmpeg 9.0.2, at 1 and 8 threads" src=".github/assets/benchmark-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ALT-C-TECHNOLOGY/altc264/main/.github/assets/benchmark-dark.svg">
+  <img alt="Frames per second decoding Big Buck Bunny 1080p, altc264 against FFmpeg 9.0.2, at 1 and 8 threads" src="https://raw.githubusercontent.com/ALT-C-TECHNOLOGY/altc264/main/.github/assets/benchmark-light.svg">
 </picture>
 
 ### 3D (MVC)
@@ -76,7 +76,7 @@ Frames per second decoding both views of a 3D clip of Big Buck Bunny ([`bbb3d-mv
 | Qualcomm QCM6490 | 36 | 124 |
 | WebAssembly (SIMD128) | 48 |  |
 
-Full details in [BENCHMARKS.md](BENCHMARKS.md).
+Full details in [BENCHMARKS.md](https://github.com/ALT-C-TECHNOLOGY/altc264/blob/main/BENCHMARKS.md).
 
 ## Usage
 
@@ -99,14 +99,14 @@ while let Some(frame) = dec.next_frame() {
 cargo cinstall --release -p altc264-capi --prefix /usr/local
 ```
 
-See [`crates/altc264-capi/include/altc264.h`](crates/altc264-capi/include/altc264.h).
+See [`crates/altc264-capi/include/altc264.h`](https://github.com/ALT-C-TECHNOLOGY/altc264/blob/main/crates/altc264-capi/include/altc264.h).
 
 ### FFmpeg and GStreamer
 
-- FFmpeg: [`integrations/ffmpeg`](integrations/ffmpeg) adds a `libaltc264`
+- FFmpeg: [`integrations/ffmpeg`](https://github.com/ALT-C-TECHNOLOGY/altc264/tree/main/integrations/ffmpeg) adds a `libaltc264`
   decoder (`./apply.sh /path/to/ffmpeg`, then `--enable-libaltc264`).
   Tested with FFmpeg 8.1.3 and 9.0.2.
-- GStreamer: [`integrations/gstreamer`](integrations/gstreamer) is an
+- GStreamer: [`integrations/gstreamer`](https://github.com/ALT-C-TECHNOLOGY/altc264/tree/main/integrations/gstreamer) is an
   `altc264dec` element.
 
 ### Command line
@@ -118,12 +118,12 @@ altc264 decode input.264 left.yuv right.yuv
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), including its [AI policy](CONTRIBUTING.md#ai-tools).
-Report security issues privately, as described in [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](https://github.com/ALT-C-TECHNOLOGY/altc264/blob/main/CONTRIBUTING.md), including its [AI policy](https://github.com/ALT-C-TECHNOLOGY/altc264/blob/main/CONTRIBUTING.md#ai-tools).
+Report security issues privately, as described in [SECURITY.md](https://github.com/ALT-C-TECHNOLOGY/altc264/blob/main/SECURITY.md).
 
 ## Licence
 
-See [LICENSE](LICENSE). The FFmpeg wrapper in
+See [LICENSE](https://github.com/ALT-C-TECHNOLOGY/altc264/blob/main/LICENSE). The FFmpeg wrapper in
 `integrations/ffmpeg` is LGPL-2.1-or-later, like FFmpeg.
 
 The licence covers this code only. H.264 is subject to patents in many
