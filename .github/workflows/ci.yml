@@ -116,11 +116,24 @@ jobs:
         run: cargo xtask conformance --bitstreams-only
       - run: cargo xtask conformance-check --smoke
 
+  # One report per CPU family (each measures the SIMD code built for it);
+  # Codecov merges them. Unit tests plus the conformance smoke streams.
   coverage:
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, name: x86_64 }
+          - { os: ubuntu-24.04-arm, name: aarch64 }
+          - { os: macos-15, name: macos-arm64 }
+          - { os: ubuntu-24.04, name: scalar, rustflags: "--cfg altc_scalar" }
+    name: coverage (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
       id-token: write
+    env:
+      RUSTFLAGS: ${{ matrix.rustflags }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -128,9 +141,18 @@ jobs:
           components: llvm-tools-preview
       - uses: taiki-e/install-action@cargo-llvm-cov
       - uses: Swatinem/rust-cache@v2
-      - run: cargo llvm-cov --workspace --exclude xtask --release --lcov --output-path lcov.info
+      - uses: actions/cache/restore@v6
+        id: suites
+        with:
+          path: work/conformance
+          key: conformance-${{ hashFiles('conformance/manifest.json') }}
+          restore-keys: conformance-
+      - if: steps.suites.outputs.cache-hit != 'true'
+        run: cargo xtask conformance --bitstreams-only
+      - run: cargo xtask coverage --lcov lcov.info
       - uses: codecov/codecov-action@v7
         with:
           files: lcov.info
+          flags: ${{ matrix.name }}
           use_oidc: true
           fail_ci_if_error: false

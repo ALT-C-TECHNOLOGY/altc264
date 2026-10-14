@@ -9,9 +9,15 @@ coverage:
       default:
         informational: true
 
+# Wait for the four per-CPU reports before computing totals.
+codecov:
+  notify:
+    after_n_builds: 4
+
 comment:
   layout: "condensed_header, diff, flags"
   require_changes: true
+  after_n_builds: 4
 
 ignore:
   - "xtask"

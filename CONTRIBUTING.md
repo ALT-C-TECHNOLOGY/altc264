@@ -43,6 +43,17 @@ cargo clippy --workspace --all-targets -- -D warnings
 RUSTFLAGS="--cfg altc_scalar" cargo test -p altc264   # the portable SIMD fallback
 ```
 
+Coverage, as CI measures it (needs `cargo install cargo-llvm-cov` and the
+conformance suites above): the unit tests plus the conformance smoke streams,
+for the CPU you run it on. CI reports each CPU family separately and Codecov
+merges them.
+
+```sh
+cargo xtask coverage                  # summary
+cargo xtask coverage --html           # browsable report in target/coverage
+cargo xtask coverage --streams full   # every conformance stream
+```
+
 ## Pull requests
 
 - Keep each pull request to one change, with tests where they make sense.
