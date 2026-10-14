@@ -26,6 +26,9 @@ usage: cargo xtask <command>
   conformance-manifest                 regenerate conformance/manifest.json from the reference YUVs
                                        and JM (maintainers)
   conformance-run [FILTER]             compare frame by frame with the reference YUVs or JM
+  coverage [--streams smoke|full|none] [--html] [--lcov FILE]
+                                       line coverage of the unit tests and the conformance streams
+                                       (needs cargo-llvm-cov); prints a summary by default
   clip FILE.mkv START DURATION NAME    cut the video track to work/clips/NAME.264 (Annex B, MVC kept)
   check-headers FILE.264               compare base-view slice headers with ffmpeg's trace_headers
   check-poc CLIP.264                   compare picture order counts with the JM log (run verify first)
@@ -44,6 +47,7 @@ fn main() -> ExitCode {
         ["conformance", "--bitstreams-only"] => conformance(true),
         ["conformance-check", rest @ ..] => conformance_check(rest),
         ["conformance-manifest"] => conformance_manifest(),
+        ["coverage", rest @ ..] => coverage(rest),
         ["conformance-run"] => conformance_run(""),
         ["conformance-run", filter] => conformance_run(filter),
         ["check-headers", file] => check_headers(Path::new(file)),
@@ -1495,6 +1499,120 @@ fn conformance_check(args: &[&str]) -> Result {
     }
     if regressions > 0 {
         return Err(format!("{regressions} regression(s)"));
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------- coverage
+
+/// Coverage of what actually verifies the decoder: the unit and
+/// integration tests, and the conformance streams decoded by an
+/// instrumented CLI (`--streams`: the smoke subset by default, every
+/// stream, or none). Measures the code built for this machine only, so
+/// each CPU family reports its own SIMD paths; CI uploads one report per
+/// family and Codecov merges them.
+fn coverage(args: &[&str]) -> Result {
+    let mut streams = "smoke";
+    let mut format: Vec<String> = vec!["--summary-only".into()];
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        match *a {
+            "--streams" => streams = it.next().copied().unwrap_or(""),
+            "--html" => format = vec!["--html".into()],
+            "--lcov" => {
+                let out = it.next().ok_or("--lcov needs a file")?;
+                format = vec!["--lcov".into(), "--output-path".into(), out.to_string()];
+            }
+            _ => return Err(USAGE.into()),
+        }
+    }
+    if !matches!(streams, "smoke" | "full" | "none") {
+        return Err("--streams is smoke, full or none".into());
+    }
+    // Instrumented builds in a directory of their own; every step, the
+    // report included, runs with the environment cargo-llvm-cov exports.
+    let target = root().join("target/coverage");
+    let shown = Command::new("cargo")
+        .args(["llvm-cov", "show-env", "--export-prefix", "--release"])
+        .env("CARGO_TARGET_DIR", &target)
+        .current_dir(root())
+        .output()
+        .map_err(|e| {
+            format!("cargo llvm-cov: {e} (install with `cargo install cargo-llvm-cov`)")
+        })?;
+    if !shown.status.success() {
+        return Err(String::from_utf8_lossy(&shown.stderr).trim().to_string());
+    }
+    let mut env: Vec<(String, String)> = String::from_utf8_lossy(&shown.stdout)
+        .lines()
+        .filter_map(|l| l.strip_prefix("export ")?.split_once('='))
+        .map(|(k, v)| (k.to_string(), v.trim_matches('\'').to_string()))
+        .collect();
+    env.push((
+        "CARGO_TARGET_DIR".into(),
+        target.to_string_lossy().into_owned(),
+    ));
+    let run = |args: &[&str]| -> Result<std::process::Output> {
+        Command::new("cargo")
+            .args(args)
+            .envs(env.iter().map(|(k, v)| (k, v)))
+            .current_dir(root())
+            .output()
+            .map_err(|e| e.to_string())
+    };
+    let clean = run(&["llvm-cov", "clean", "--workspace"])?;
+    if !clean.status.success() {
+        return Err(String::from_utf8_lossy(&clean.stderr).trim().to_string());
+    }
+    let cargo = |args: &[&str]| -> Result {
+        let st = Command::new("cargo")
+            .args(args)
+            .envs(env.iter().map(|(k, v)| (k, v)))
+            .current_dir(root())
+            .status()
+            .map_err(|e| e.to_string())?;
+        if st.success() {
+            Ok(())
+        } else {
+            Err(format!("cargo {} failed", args.join(" ")))
+        }
+    };
+    cargo(&[
+        "test",
+        "-q",
+        "--workspace",
+        "--exclude",
+        "xtask",
+        "--release",
+    ])?;
+    if streams != "none" {
+        cargo(&["build", "-q", "--release", "-p", "altc264-cli"])?;
+        let mut check = Command::new(std::env::current_exe().map_err(|e| e.to_string())?);
+        check.arg("conformance-check");
+        if streams == "smoke" {
+            check.arg("--smoke");
+        }
+        let st = check
+            .envs(env.iter().map(|(k, v)| (k, v)))
+            .env("ALTC_BIN", target.join("release/altc264"))
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !st.success() {
+            return Err("conformance check failed under coverage".into());
+        }
+    }
+    let mut report = vec![
+        "llvm-cov",
+        "report",
+        "--release",
+        "--ignore-filename-regex",
+        "(xtask|tools)/",
+    ];
+    report.extend(format.iter().map(String::as_str));
+    let out = run(&report)?;
+    print!("{}", String::from_utf8_lossy(&out.stdout));
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
     }
     Ok(())
 }
