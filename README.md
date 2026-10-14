@@ -37,11 +37,46 @@ conformance suites, which CI checks on every change.
 - **Easy to embed:** a Rust crate, a C library, and FFmpeg and GStreamer
   integrations.
 
+## Platforms
+
+| Platform | Architectures | SIMD |
+|---|---|---|
+| Apple: macOS, iOS, iPadOS, tvOS, visionOS | arm64, and x86_64 on macOS | NEON, SSE2/AVX2 on Intel |
+| Android | arm64-v8a, x86_64 | NEON, SSE2/AVX2 |
+| Linux | x86_64, aarch64 | SSE2/AVX2, NEON |
+| Windows | x86_64, arm64 | SSE2/AVX2, NEON |
+| WebAssembly | wasm32 (WASI) | SIMD128, single-threaded for now |
+
+Other targets build with the portable fallback.
+
 ## Conformance
 
 **All 270** ITU-T H.264.1 conformance streams are bit-exact on every CPU
 backend, in every view the reference decoders can produce. The expected output of each stream is in
 [`conformance/manifest.json`](conformance/manifest.json).
+
+## Performance
+
+Against FFmpeg 9.0.2's H.264 decoder, on this public 1080p clip of [Big Buck Bunny](https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_30MB.mp4).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/benchmark-dark.svg">
+  <img alt="Frames per second decoding Big Buck Bunny 1080p, altc264 against FFmpeg 9.0.2, at 1 and 8 threads" src=".github/assets/benchmark-light.svg">
+</picture>
+
+### 3D (MVC)
+
+Frames per second decoding both views of a 3D clip of Big Buck Bunny ([`bbb3d-mvc-10s.264`](https://github.com/ALT-C-TECHNOLOGY/altc264/releases/tag/benchmark-clips), 1080p).
+
+| CPU | 1 thread | 8 threads |
+|---|---:|---:|
+| Apple M4 Pro | 87 | 546 |
+| Intel Core Ultra X9 388H | 74 | 301 |
+| AMD Ryzen AI 9 HX 370 | 62 | 339 |
+| Qualcomm QCM6490 | 36 | 124 |
+| WebAssembly (SIMD128) | 48 |  |
+
+Full details in [BENCHMARKS.md](BENCHMARKS.md).
 
 ## Usage
 
@@ -70,7 +105,7 @@ See [`crates/altc264-capi/include/altc264.h`](crates/altc264-capi/include/altc26
 
 - FFmpeg: [`integrations/ffmpeg`](integrations/ffmpeg) adds a `libaltc264`
   decoder (`./apply.sh /path/to/ffmpeg`, then `--enable-libaltc264`).
-  Tested with FFmpeg 8.1.3.
+  Tested with FFmpeg 8.1.3 and 9.0.2.
 - GStreamer: [`integrations/gstreamer`](integrations/gstreamer) is an
   `altc264dec` element.
 
@@ -88,7 +123,7 @@ as described in [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-MIT, copyright ALT C TECHNOLOGY PTY LTD. The FFmpeg wrapper in
+See [LICENSE.md](LICENSE.md). The FFmpeg wrapper in
 `integrations/ffmpeg` is LGPL-2.1-or-later, like FFmpeg.
 
 The licence covers this code only. H.264 is subject to patents in many
