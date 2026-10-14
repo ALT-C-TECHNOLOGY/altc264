@@ -1,0 +1,32 @@
+name: Bug report
+description: Wrong output, a crash, or a stream that fails to decode
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: How to reproduce
+      description: >-
+        Commands, the API calls, or a minimal program. If a stream triggers it,
+        attach a short clip or say where to get it. For a crash on crafted
+        input, report privately instead (see SECURITY.md).
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Version or commit
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Platform
+      placeholder: e.g. Linux aarch64, macOS arm64, wasm32
+  - type: textarea
+    attributes:
+      label: Output or logs
+      render: text

@@ -1,0 +1,20 @@
+[package]
+name = "altc264-cli"
+description = "Command-line tools for the altc264 decoder"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+keywords = ["h264", "avc", "mvc", "video", "cli"]
+categories = ["multimedia::video", "command-line-utilities"]
+
+[[bin]]
+name = "altc264"
+path = "src/main.rs"
+
+[dependencies]
+altc264.workspace = true

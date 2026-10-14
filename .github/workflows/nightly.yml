@@ -1,0 +1,79 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 16 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  suites:
+    name: fetch conformance suites
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
+        id: suites
+        with:
+          path: work/conformance
+          key: conformance-${{ hashFiles('conformance/manifest.json') }}
+      - if: steps.suites.outputs.cache-hit != 'true'
+        uses: dtolnay/rust-toolchain@stable
+      - if: steps.suites.outputs.cache-hit != 'true'
+        run: cargo xtask conformance --bitstreams-only
+
+  conformance:
+    needs: suites
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, name: x86_64, threads: "1" }
+          - { os: ubuntu-24.04, name: x86_64 threaded, threads: "4" }
+          - { os: ubuntu-24.04-arm, name: aarch64, threads: "1" }
+          - { os: ubuntu-24.04-arm, name: aarch64 threaded, threads: "4" }
+          - { os: macos-15, name: macos-arm64, threads: "4" }
+          - { os: ubuntu-24.04, name: scalar, threads: "1", rustflags: "--cfg altc_scalar" }
+    name: conformance (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    env:
+      RUSTFLAGS: ${{ matrix.rustflags }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache/restore@v6
+        with:
+          path: work/conformance
+          key: conformance-${{ hashFiles('conformance/manifest.json') }}
+          fail-on-cache-miss: true
+      - run: cargo xtask conformance-check --threads ${{ matrix.threads }}
+
+  conformance-wasm:
+    name: conformance (wasm32 SIMD128)
+    needs: suites
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - uses: bytecodealliance/actions/wasmtime/setup@v1
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache/restore@v6
+        with:
+          path: work/conformance
+          key: conformance-${{ hashFiles('conformance/manifest.json') }}
+          fail-on-cache-miss: true
+      - run: cargo build -p altc264-cli --release --target wasm32-wasip1
+        env:
+          RUSTFLAGS: -C target-feature=+simd128
+      - run: cargo xtask conformance-check
+        env:
+          ALTC_BIN: target/wasm32-wasip1/release/altc264.wasm
+          ALTC_RUNNER: wasmtime run --dir=/

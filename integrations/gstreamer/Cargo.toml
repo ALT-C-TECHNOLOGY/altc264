@@ -1,0 +1,20 @@
+[package]
+name = "gst-plugin-altc264"
+version = "0.0.1"
+edition = "2024"
+license = "MIT"
+description = "GStreamer H.264 and MVC (stereo 3D) decoder element based on altc264"
+rust-version = "1.88"
+
+[lib]
+name = "gstaltc264"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+gst = { package = "gstreamer", version = "0.25" }
+gst-video = { package = "gstreamer-video", version = "0.25", features = ["v1_22"] }
+altc264 = { path = "../../crates/altc264" }
+
+# Built on its own: the decoder workspace does not depend on GStreamer.
+[workspace]

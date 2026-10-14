@@ -1,0 +1,23 @@
+[package]
+name = "altc264"
+description = "H.264/AVC and MVC (Stereo High) video decoder"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+keywords = ["h264", "avc", "mvc", "video", "decoder"]
+categories = ["multimedia::video", "multimedia::encoding"]
+
+[dependencies]
+
+[lints.rust]
+# --cfg altc_scalar forces the portable SIMD fallback (for testing it).
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(altc_scalar)"] }
+
+[lints.clippy]
+# `k % 2 == 0` reads like the spec's equations.
+manual_is_multiple_of = "allow"

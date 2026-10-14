@@ -1,0 +1,7 @@
+/target
+/work
+/third_party
+.DS_Store
+/local
+__pycache__/
+integrations/gstreamer/target/

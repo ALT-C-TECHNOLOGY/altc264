@@ -1,0 +1,47 @@
+[package]
+name = "altc264-capi"
+description = "C API for the altc264 decoder"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+keywords = ["h264", "avc", "mvc", "video", "ffi"]
+categories = ["multimedia::video", "external-ffi-bindings"]
+
+[lib]
+name = "altc264"
+crate-type = ["rlib", "staticlib", "cdylib"]
+# Its rustdoc test build would see two crates named altc264 (this one and the
+# decoder); the C API has no Rust examples to test.
+doctest = false
+# Its Rust docs would collide with the decoder's (same crate name); the C
+# header is its documentation.
+doc = false
+
+[dependencies]
+altc264.workspace = true
+
+[dev-dependencies]
+# tests/header.rs: include/altc264.h is regenerated and compared.
+cbindgen = { version = "0.29", default-features = false }
+
+[features]
+# Used by cargo-c (cargo cinstall) to build the C library.
+capi = []
+
+[package.metadata.capi.header]
+name = "altc264"
+subdirectory = false
+generation = true
+
+[package.metadata.capi.pkg_config]
+name = "altc264"
+filename = "altc264"
+description = "H.264/AVC and MVC video decoder"
+
+[package.metadata.capi.library]
+name = "altc264"

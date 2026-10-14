@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/ALT-C-TECHNOLOGY/altc264/security/advisories/new
+    about: Report security issues privately.

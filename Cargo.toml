@@ -1,0 +1,23 @@
+[workspace]
+resolver = "3"
+members = ["crates/altc264", "crates/altc264-capi", "crates/altc264-cli", "xtask"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+license = "MIT"
+rust-version = "1.88"
+authors = ["ALT C TECHNOLOGY PTY LTD"]
+repository = "https://github.com/ALT-C-TECHNOLOGY/altc264"
+homepage = "https://github.com/ALT-C-TECHNOLOGY/altc264"
+
+[workspace.dependencies]
+altc264 = { path = "crates/altc264" }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+debug = "line-tables-only"
+
+[profile.bench]
+inherits = "release"

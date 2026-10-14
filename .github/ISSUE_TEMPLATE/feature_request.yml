@@ -1,0 +1,13 @@
+name: Feature request
+description: A profile, an API, an integration or anything else
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: What you would like
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Why
+      description: The use case it serves.

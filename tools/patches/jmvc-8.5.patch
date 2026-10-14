@@ -1,0 +1,76 @@
+diff --git a/JMVC/H264Extension/build/linux/common/makefile.base b/JMVC/H264Extension/build/linux/common/makefile.base
+index c6a4bd8..983f878 100644
+--- a/JMVC/H264Extension/build/linux/common/makefile.base
++++ b/JMVC/H264Extension/build/linux/common/makefile.base
+@@ -45,8 +45,8 @@ endif
+ #########################################################
+ 
+ # default cpp flags for all configurations
+-#CPPFLAGS          = -Wall -fPIC $(DEFS) -I$(CURDIR)/$(INC_DIR) $(USER_INC_DIRS)
+-CPPFLAGS          = -fPIC $(DEFS) -I$(CURDIR)/$(INC_DIR) $(USER_INC_DIRS) -DMERL_VIEW -Wall -Wshadow -Wno-reorder -Wno-sign-compare
++#CPPFLAGS          = -Wall -fPIC $(DEFS) -I$(INC_DIR) $(USER_INC_DIRS)
++CPPFLAGS          = -std=gnu++98 -w -fpermissive -fPIC $(DEFS) -I$(INC_DIR) $(USER_INC_DIRS) -DMERL_VIEW -Wall -Wshadow -Wno-reorder -Wno-sign-compare
+ #
+ # debug cpp flags
+ # to address 64-bit build issues force a 32-bit build
+@@ -60,9 +60,9 @@ endif
+ #
+ # release cpp
+ ifeq ($(CPU_ARCH),x86_64)
+-RELEASE_CPPFLAGS  =  -O3 -ffloat-store -DNDEBUG -Wuninitialized # -m32
++RELEASE_CPPFLAGS  =  -O3 -DNDEBUG -Wuninitialized # -m32
+ else
+-RELEASE_CPPFLAGS  =  -O3 -ffloat-store -DNDEBUG -Wuninitialized
++RELEASE_CPPFLAGS  =  -O3 -DNDEBUG -Wuninitialized
+ endif
+ 
+ #########################################################
+@@ -97,10 +97,10 @@ ifeq ($(CONFIG), LIBRARY)
+ LDFLAGS           = $(ALL_LDFLAGS) -shared
+ #
+ # debug linker flags for library
+-DEBUG_LDFLAGS     = -Wl,-soname,lib$(PRJ_NAME)d.so.$(VER)
++DEBUG_LDFLAGS     =
+ #
+ # release linker flags for library
+-RELEASE_LDFLAGS   = -Wl,-soname,lib$(PRJ_NAME).so.$(VER)
++RELEASE_LDFLAGS   =
+ #
+ else
+ ifeq ($(CONFIG), CONSOLE)
+@@ -189,14 +189,14 @@ $(OBJ_DIR)/%.d.o: $(SRC_DIR4)/%.asm
+ # see also: http://make.paulandlesley.org/autodep.html
+ #    2005-01-25 Steffen Kamp (kamp@ient.rwth-aachen.de), RWTH Aachen
+ define COMPILE_AND_DEPEND_RELEASE
+-	$(CPP) -c -MMD -MF $(OBJ_DIR)/$*.r.d -MT $(OBJ_DIR)/$*.r.o $(CPPFLAGS) $(RELEASE_CPPFLAGS) -o $@ $(CURDIR)/$<
++	$(CPP) -c -MMD -MF $(OBJ_DIR)/$*.r.d -MT $(OBJ_DIR)/$*.r.o $(CPPFLAGS) $(RELEASE_CPPFLAGS) -o $@ $<
+ 	@cp $(OBJ_DIR)/$*.r.d $(OBJ_DIR)/$*.r.P; \
+ 		sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+ 		-e '/^$$/ d' -e 's/$$/ :/' < $(OBJ_DIR)/$*.r.d >> $(OBJ_DIR)/$*.r.P; \
+ 		rm -f $(OBJ_DIR)/$*.r.d
+ endef
+ define COMPILE_AND_DEPEND_DEBUG
+-	$(CPP) -c -MMD -MF $(OBJ_DIR)/$*.d.d -MT $(OBJ_DIR)/$*.d.o $(CPPFLAGS) $(DEBUG_CPPFLAGS) -o $@ $(CURDIR)/$<
++	$(CPP) -c -MMD -MF $(OBJ_DIR)/$*.d.d -MT $(OBJ_DIR)/$*.d.o $(CPPFLAGS) $(DEBUG_CPPFLAGS) -o $@ $<
+ 	@cp $(OBJ_DIR)/$*.d.d $(OBJ_DIR)/$*.d.P; \
+ 		sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+ 		-e '/^$$/ d' -e 's/$$/ :/' < $(OBJ_DIR)/$*.d.d >> $(OBJ_DIR)/$*.d.P; \
+diff --git a/JMVC/H264Extension/include/H264AVCCommonIf.h b/JMVC/H264Extension/include/H264AVCCommonIf.h
+index a60eeb9..e818c76 100644
+--- a/JMVC/H264Extension/include/H264AVCCommonIf.h
++++ b/JMVC/H264Extension/include/H264AVCCommonIf.h
+@@ -65,11 +65,11 @@ class MyList : public std::list< T >
+ public:
+   typedef typename std::list<T>::iterator MyIterator;
+ 
+-  MyList& operator += ( const MyList& rcMyList) { if( ! rcMyList.empty() ) { insert( this->end(), rcMyList.begin(), rcMyList.end());} return *this; } // leszek
++  MyList& operator += ( const MyList& rcMyList) { if( ! rcMyList.empty() ) { this->insert( this->end(), rcMyList.begin(), rcMyList.end());} return *this; } // leszek
+   T popBack()                           { T cT = this->back(); this->pop_back(); return cT;  }
+   T popFront()                          { T cT = this->front(); this->pop_front(); return cT; }
+-  Void pushBack( const T& rcT )         { if( sizeof(T) == sizeof(void*)) { if( rcT != NULL ){ push_back( rcT);} } } // Fix crash with Linux 64 systems. -Dong
+-  Void pushFront( const T& rcT )        { if( sizeof(T) == sizeof(void*)) { if( rcT != NULL ){ push_front( rcT);} } }
++  Void pushBack( const T& rcT )         { if( sizeof(T) == sizeof(void*)) { if( rcT != NULL ){ this->push_back( rcT);} } } // Fix crash with Linux 64 systems. -Dong
++  Void pushFront( const T& rcT )        { if( sizeof(T) == sizeof(void*)) { if( rcT != NULL ){ this->push_front( rcT);} } }
+   MyIterator find( const T& rcT ) {  return std::find( this->begin(), this->end(), rcT ); } // leszek
+ };
+ 
