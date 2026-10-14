@@ -57,10 +57,24 @@ cargo xtask coverage --streams full   # every conformance stream
 ## Pull requests
 
 - Keep each pull request to one change, with tests where they make sense.
-- CI must pass: formatting, clippy, tests on Linux and macOS, the scalar and
-  wasm builds, and the conformance smoke subset.
+- CI must pass: formatting, clippy, tests on Linux, macOS and Windows, the
+  scalar and wasm builds, and the conformance smoke subset.
 - Performance changes: include before and after timings, and the machine
   you measured on.
+
+## AI tools
+
+You can use AI tools to help write code, but you are responsible for every
+line you submit.
+
+- Understand your change and be ready to explain it in review. Changes that
+  look generated without care, or that you can't explain, will be closed.
+- Say in the pull request if AI tools wrote a significant part of it.
+- Your sign-off below covers AI-assisted code too. Make sure you have the
+  right to submit it.
+- Write issues, pull request descriptions and review comments in your own
+  words, not pasted AI output. A machine translation is fine. Say that it is
+  one, and include your original text if you can.
 
 ## Developer Certificate of Origin
 

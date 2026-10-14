@@ -118,8 +118,8 @@ altc264 decode input.264 left.yuv right.yuv
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues privately,
-as described in [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md), including its [AI policy](CONTRIBUTING.md#ai-tools).
+Report security issues privately, as described in [SECURITY.md](SECURITY.md).
 
 ## Licence
 
