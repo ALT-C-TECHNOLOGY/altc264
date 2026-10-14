@@ -110,8 +110,8 @@ jobs:
         id: suites
         with:
           path: work/conformance
-          key: conformance-${{ hashFiles('conformance/manifest.json') }}
-          restore-keys: conformance-
+          key: conformance-bitstreams-${{ hashFiles('conformance/manifest.json') }}
+          restore-keys: conformance-bitstreams-
       - if: steps.suites.outputs.cache-hit != 'true'
         run: cargo xtask conformance --bitstreams-only
       - run: cargo xtask conformance-check --smoke
@@ -145,8 +145,8 @@ jobs:
         id: suites
         with:
           path: work/conformance
-          key: conformance-${{ hashFiles('conformance/manifest.json') }}
-          restore-keys: conformance-
+          key: conformance-bitstreams-${{ hashFiles('conformance/manifest.json') }}
+          restore-keys: conformance-bitstreams-
       - if: steps.suites.outputs.cache-hit != 'true'
         run: cargo xtask conformance --bitstreams-only
       - run: cargo xtask coverage --lcov lcov.info

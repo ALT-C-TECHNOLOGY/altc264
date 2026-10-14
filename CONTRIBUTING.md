@@ -17,7 +17,7 @@ cargo build --release
 cargo test --workspace
 ```
 
-Conformance (downloads about 3 GB from the ITU once; keeps 0.5 GB):
+Conformance (downloads about 3 GB from the ITU once; keeps 1.3 GB):
 
 ```sh
 cargo xtask conformance --bitstreams-only   # fetch the suites into work/conformance

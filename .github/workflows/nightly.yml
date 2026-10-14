@@ -21,7 +21,7 @@ jobs:
         id: suites
         with:
           path: work/conformance
-          key: conformance-${{ hashFiles('conformance/manifest.json') }}
+          key: conformance-bitstreams-${{ hashFiles('conformance/manifest.json') }}
       - if: steps.suites.outputs.cache-hit != 'true'
         uses: dtolnay/rust-toolchain@stable
       - if: steps.suites.outputs.cache-hit != 'true'
@@ -50,7 +50,7 @@ jobs:
       - uses: actions/cache/restore@v6
         with:
           path: work/conformance
-          key: conformance-${{ hashFiles('conformance/manifest.json') }}
+          key: conformance-bitstreams-${{ hashFiles('conformance/manifest.json') }}
           fail-on-cache-miss: true
       - run: cargo xtask conformance-check --threads ${{ matrix.threads }}
 
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/cache/restore@v6
         with:
           path: work/conformance
-          key: conformance-${{ hashFiles('conformance/manifest.json') }}
+          key: conformance-bitstreams-${{ hashFiles('conformance/manifest.json') }}
           fail-on-cache-miss: true
       - run: cargo build -p altc264-cli --release --target wasm32-wasip1
         env:
