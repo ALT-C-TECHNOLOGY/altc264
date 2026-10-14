@@ -19,7 +19,7 @@ const USAGE: &str = "\
 usage: cargo xtask <command>
 
   conformance [--bitstreams-only]      download ITU-T H.264.1 suites -> work/conformance/index.json
-                                       (--bitstreams-only drops the reference YUVs after unpacking)
+                                       (--bitstreams-only keeps only the bitstreams, about 1.3 GB)
   conformance-check [--smoke] [--threads N]
                                        decode the suites and compare with conformance/manifest.json
                                        (bitstreams only; no reference decoder needed)
@@ -244,7 +244,9 @@ fn conformance(bitstreams_only: bool) -> Result {
 /// go through temporary names so an interrupted run leaves nothing half-done.
 fn fetch_conformance_file(dir: &Path, set: &str, f: &str, bitstreams_only: bool) -> Result {
     let ext = f.rsplit_once('.').map_or("", |x| x.1).to_ascii_lowercase();
-    if bitstreams_only && ext == "yuv" {
+    // Loose files: bitstreams and the zips that hold them; the rest is
+    // reference YUV, traces and documents.
+    if bitstreams_only && ext != "zip" && !BITSTREAM_EXTENSIONS.contains(&ext.as_str()) {
         return Ok(());
     }
     let dst = dir.join(f);
@@ -268,7 +270,7 @@ fn fetch_conformance_file(dir: &Path, set: &str, f: &str, bitstreams_only: bool)
                 .map_err(|e| e.to_string())?;
             if st.success() {
                 if bitstreams_only {
-                    remove_yuv(&tmp);
+                    keep_only_bitstreams(&tmp);
                 }
                 fs::rename(&tmp, &unpacked).map_err(|e| e.to_string())?;
                 if bitstreams_only {
@@ -388,14 +390,18 @@ fn conformance_run(filter: &str) -> Result {
     Ok(())
 }
 
-fn remove_yuv(dir: &Path) {
+/// Deletes everything under `dir` but the bitstreams: the zips also hold
+/// reference YUV and encoder traces (single traces over 2 GB).
+fn keep_only_bitstreams(dir: &Path) {
     let mut files = Vec::new();
     collect_files(dir, &mut files);
     for f in files {
-        if f.extension()
+        let ext = f
+            .extension()
             .and_then(|x| x.to_str())
-            .is_some_and(|x| x.eq_ignore_ascii_case("yuv"))
-        {
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if !BITSTREAM_EXTENSIONS.contains(&ext.as_str()) {
             let _ = fs::remove_file(f);
         }
     }
