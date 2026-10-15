@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>altc264 player</title>
+<!-- Threads need cross-origin isolation, which this adds where the host's
+     headers don't (GitHub Pages): it reloads the page once, the first time.
+     COEP require-corp everywhere: Safari has no credentialless. -->
+<script>
+  window.coi = { coepCredentialless: () => false, doReload: () => ((window.coiReloading = true), location.reload()) };
+</script>
+<script src="coi-serviceworker.js"></script>
+<style>
+  :root { color-scheme: light dark; --muted: #8b949e; --ok: #2fbf8f; --bad: #e5534b; }
+  body { font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; margin: 0 auto; padding: 16px; max-width: 1200px; }
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0 0 10px; }
+  a { color: inherit; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 10px; }
+  label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); gap: 3px; }
+  label.check { flex-direction: row; align-items: center; color: inherit; font-size: 15px; }
+  select, input, button { font: inherit; padding: 6px 8px; }
+  button { font-weight: 600; cursor: pointer; }
+  input[type=url] { width: 22em; max-width: 100%; }
+  .stage { position: relative; background: #000; border-radius: 8px; overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 200px; margin-bottom: 10px; }
+  .stage:fullscreen { border-radius: 0; }
+  canvas { display: block; max-width: 100%; max-height: 75vh; cursor: pointer; }
+  .stage:fullscreen canvas { max-height: 100vh; }
+  .stage.idle, .stage.idle canvas { cursor: none; }
+  .bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 8px; align-items: center; padding: 28px 12px 10px;
+    background: linear-gradient(transparent, #000c); color: #fff; transition: opacity 0.3s; }
+  .stage.idle .bar { opacity: 0; pointer-events: none; }
+  .bar button { background: #fff2; color: #fff; border: 0; border-radius: 6px; padding: 5px 9px; }
+  .seek { flex: 1; min-width: 60px; position: relative; display: flex; align-items: center; }
+  .seek input[type=range] { width: 100%; accent-color: #3ee0b8; }
+  .buffered { position: absolute; left: 0; bottom: -3px; height: 3px; border-radius: 2px; background: #fff6; width: 0; }
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px;
+    background: #000a; color: #fff; font-size: 15px; pointer-events: none; }
+  .overlay[hidden] { display: none; }
+  .progress { width: min(320px, 70%); height: 4px; border-radius: 2px; background: #fff3; overflow: hidden; }
+  .progress div { height: 100%; width: 0; background: #3ee0b8; transition: width 0.2s; }
+  .time { font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; }
+  @media (max-width: 640px) { .bar .wide { display: none; } }
+  .info { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ok { color: var(--ok); }
+  .bad { color: var(--bad); }
+  footer { margin-top: 14px; font-size: 12px; color: var(--muted); }
+  pre { font-size: 12px; max-height: 160px; overflow: auto; background: #8881; padding: 8px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<header><h1>altc264 player</h1></header>
+<div class="row">
+  <label>Sample <select id="sample">
+    <option value="">Choose</option>
+    <option value="clips/bbb-1080-10s.mp4">2D: Big Buck Bunny 1080p (MP4)</option>
+    <option value="clips/bbb3d-mvc-10s.mkv">3D: Big Buck Bunny 3D (MKV, MVC)</option>
+  </select></label>
+  <label>File <input type="file" id="file" accept=".mkv,.mk3d,.mp4,.m4v,.mov,.ts,.m2ts,.mts"></label>
+  <label>URL <input type="url" id="url" placeholder="https://…/video.mkv"></label>
+  <button id="load">Load URL</button>
+</div>
+<div class="row">
+  <label>Threads <select id="threads"></select></label>
+  <label>3D view <select id="mode">
+    <option value="auto">Auto</option>
+    <option value="left">Left eye</option>
+    <option value="right">Right eye</option>
+    <option value="sbs">Side by side</option>
+    <option value="tb">Top and bottom</option>
+    <option value="anaglyph">Anaglyph (red/cyan)</option>
+  </select></label>
+  <label class="check"><input type="checkbox" id="swap"> Swap eyes</label>
+</div>
+<div class="stage" id="stage">
+  <canvas id="canvas" width="1920" height="1080"></canvas>
+  <div class="bar">
+    <button id="play" disabled title="Play (space)">▶</button>
+    <button id="step" disabled title="Next frame" class="wide">⏭</button>
+    <div class="seek"><input type="range" id="seek" min="0" max="0" step="any" value="0" disabled><div class="buffered" id="buffered"></div></div>
+    <span class="time" id="time">0:00.0 / 0:00.0</span>
+    <button id="full" title="Full screen (F)">⛶</button>
+  </div>
+  <div class="overlay" id="overlay"><div id="overlay-text">Loading the player…</div><div class="progress"><div id="overlay-bar"></div></div></div>
+</div>
+<div class="info"><span id="lib"></span> <span id="run"></span></div>
+<pre id="log"></pre>
+<footer>
+  Decoding by <a href="https://github.com/ALT-C-TECHNOLOGY/altc264">altc264</a> (MIT) in
+  <a href="https://ffmpeg.org">FFmpeg</a> 9.0.2 (LGPL 2.1), built for WebAssembly by
+  <a href="https://github.com/ALT-C-TECHNOLOGY/altc264/blob/main/tools/web/build.sh">tools/web/build.sh</a>.
+  Cross-origin isolation by <a href="https://github.com/gzuidhof/coi-serviceworker">coi-serviceworker</a> (MIT).
+  Big Buck Bunny © 2008, 2013 Blender Foundation, <a href="https://www.bigbuckbunny.org">www.bigbuckbunny.org</a>,
+  <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.
+</footer>
+<script type="module">
+const $ = (id) => document.getElementById(id);
+// The log since the current file was opened, to tell why the decoder stopped.
+let fileLog = '';
+const log = (t) => {
+  fileLog += t;
+  $('log').textContent += t;
+  $('log').scrollTop = 1e9;
+};
+const threaded = self.crossOriginIsolated;
+const cores = navigator.hardwareConcurrency || 4;
+for (const t of threaded ? [0, 1, 2, 4, 8, 16] : [0]) $('threads').add(new Option(String(t), t));
+$('threads').value = threaded ? String(Math.min(8, cores)) : '0';
+
+// Renderer: YUV planes to RGB (BT.709 or BT.601, limited range). A side by
+// side frame holds the left eye in its left half.
+const canvas = $('canvas');
+const gl = canvas.getContext('webgl2');
+const vs = `#version 300 es
+in vec2 p; out vec2 uv;
+void main() { uv = vec2(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5); gl_Position = vec4(p, 0, 1); }`;
+const fs = `#version 300 es
+precision mediump float;
+in vec2 uv; out vec4 o;
+uniform sampler2D y, u, v;
+uniform bool sbs, anaglyph, bt601; uniform int eye;
+vec3 rgb(vec2 c) {
+  float Y = 1.1644 * (texture(y, c).r - 0.0627), U = texture(u, c).r - 0.502, V = texture(v, c).r - 0.502;
+  return bt601 ? vec3(Y + 1.596 * V, Y - 0.392 * U - 0.813 * V, Y + 2.017 * U)
+               : vec3(Y + 1.793 * V, Y - 0.213 * U - 0.533 * V, Y + 2.112 * U);
+}
+vec2 at(int e) { return sbs ? vec2(uv.x * 0.5 + (e == 1 ? 0.5 : 0.0), uv.y) : uv; }
+void main() {
+  if (anaglyph) { vec3 l = rgb(at(0)), r = rgb(at(1)); o = vec4(l.r, r.g, r.b, 1); }
+  else o = vec4(rgb(at(eye)), 1);
+}`;
+const prog = gl.createProgram();
+for (const [type, text] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, text);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) log(gl.getShaderInfoLog(sh));
+  gl.attachShader(prog, sh);
+}
+gl.linkProgram(prog);
+gl.useProgram(prog);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+const uni = (n) => gl.getUniformLocation(prog, n);
+const tex = ['y', 'u', 'v'].map((name, i) => {
+  const t = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0 + i);
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  for (const k of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, k, gl.LINEAR);
+  for (const k of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, k, gl.CLAMP_TO_EDGE);
+  gl.uniform1i(uni(name), i);
+  return t;
+});
+
+function draw(f) {
+  if (!f) return;
+  let mode = $('mode').value;
+  if (mode === 'auto') mode = f.sbs ? 'sbs' : 'left';
+  if (!f.sbs && mode !== 'left') mode = 'left';
+  const w = f.sbs ? f.w / 2 : f.w, h = f.h;
+  const W = mode === 'sbs' ? 2 * w : w, H = mode === 'tb' ? 2 * h : h;
+  if (canvas.width !== W || canvas.height !== H) [canvas.width, canvas.height] = [W, H];
+  f.planes.forEach((p, k) => {
+    gl.activeTexture(gl.TEXTURE0 + k);
+    gl.bindTexture(gl.TEXTURE_2D, tex[k]);
+    const [pw, ph] = k ? [f.cw, f.ch] : [f.w, f.h];
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, pw, ph, 0, gl.RED, gl.UNSIGNED_BYTE, p);
+  });
+  const [l, r] = $('swap').checked ? [1, 0] : [0, 1];
+  gl.uniform1i(uni('sbs'), f.sbs ? 1 : 0);
+  gl.uniform1i(uni('bt601'), h < 720 ? 1 : 0);
+  gl.uniform1i(uni('anaglyph'), mode === 'anaglyph' ? 1 : 0);
+  const eyes = { left: [[0, 0, w, h, l]], right: [[0, 0, w, h, r]], anaglyph: [[0, 0, w, h, l]],
+    sbs: [[0, 0, w, h, l], [w, 0, w, h, r]], tb: [[0, h, w, h, l], [0, 0, w, h, r]] }[mode];
+  for (const [x, y, vw, vh, e] of eyes) {
+    gl.viewport(x, y, vw, vh);
+    gl.uniform1i(uni('eye'), e);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+}
+
+// Audio: decoded stereo chunks played back to back on the audio clock, which
+// is the playback clock when there is audio.
+const actx = new AudioContext();
+let chunks = [], sources = [], nextAt = 0;
+const scheduleAhead = () => {
+  if (!playing || !info.audio) return;
+  const now = mediaTime();
+  while (chunks.length && chunks[0].t < now + 1) {
+    const c = chunks.shift();
+    let when = clock + (c.t - base);
+    // Contiguous with the last chunk unless the timestamps jump.
+    if (nextAt && Math.abs(when - nextAt) < 0.05) when = nextAt;
+    if (when < actx.currentTime) continue;
+    const n = c.pcm.length / 2;
+    const buf = actx.createBuffer(2, n, actx.sampleRate);
+    const [L, R] = [buf.getChannelData(0), buf.getChannelData(1)];
+    for (let i = 0; i < n; i++) [L[i], R[i]] = [c.pcm[2 * i], c.pcm[2 * i + 1]];
+    const s = actx.createBufferSource();
+    s.buffer = buf;
+    s.connect(actx.destination);
+    s.start(when);
+    nextAt = when + n / actx.sampleRate;
+    s.onended = () => (sources = sources.filter((x) => x !== s));
+    sources.push(s);
+  }
+};
+const stopAudio = () => {
+  for (const s of sources) s.stop();
+  sources = [];
+  nextAt = 0;
+};
+
+// The overlay on the video: loading and buffering. bar: 0..1, or null for none.
+function overlay(text, bar = null) {
+  $('overlay').hidden = text == null;
+  if (text == null) return;
+  $('overlay-text').textContent = text;
+  $('overlay-bar').parentElement.hidden = bar == null;
+  $('overlay-bar').style.width = `${Math.round((bar ?? 0) * 100)}%`;
+}
+
+// coi-serviceworker reloads the page on the first visit, cutting off downloads.
+const leaving = () => window.coiReloading;
+
+// The wasm, downloaded once per visit with its progress shown.
+const wasm = (async () => {
+  const r = await fetch(threaded ? 'core.wasm' : 'core-st.wasm');
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const total = +r.headers.get('Content-Length') || 0;
+  const reader = r.body.getReader();
+  const parts = [];
+  let got = 0;
+  for (let c; !(c = await reader.read()).done; ) {
+    parts.push(c.value);
+    got += c.value.length;
+    overlay(`Loading the player… ${total ? Math.round((got / total) * 100) : ''}%`, total ? got / total : null);
+  }
+  const bytes = new Uint8Array(got);
+  let at = 0;
+  for (const p of parts) bytes.set(p, (at += p.length) - p.length);
+  return bytes;
+})().catch((e) => {
+  if (leaving()) return new Promise(() => {});
+  overlay(`The player could not be downloaded: ${e.message}. Reload the page to try again.`);
+  throw e;
+});
+
+// Playback.
+// Each file gets a new decoder worker, so closing one gives its memory back
+// (wasm memory never shrinks).
+let worker;
+async function startWorker() {
+  worker?.terminate();
+  worker = new Worker('player-worker.js', { type: 'module' });
+  chain = Promise.resolve();
+  asking = stepping = seeking = buffering = starved = false;
+  busy = busyAtOpen = 0;
+  const bytes = (await wasm).slice();
+  return call({ init: { bytes: bytes.buffer, threaded } });
+}
+const logs = new BroadcastChannel('altc264-log');
+logs.onmessage = (e) => {
+  log(e.data.log);
+  if (e.data.fatal) stopped(e.data.log);
+};
+
+const outOfMemory = (text) => /memory allocation of \d+ bytes failed|out of memory/i.test(text);
+
+// The decoder crashed (a decoder thread aborted, or the core trapped): says
+// why and starts a new decoder, so another file or setting can be tried.
+let restarting = false;
+async function stopped(error) {
+  if (restarting) return;
+  restarting = true;
+  pause();
+  queue = [];
+  chunks = [];
+  info = {};
+  ended = true;
+  for (const id of ['play', 'step', 'seek']) $(id).disabled = true;
+  alert(outOfMemory(fileLog + error)
+    ? 'This video needs more memory than this browser gives the player. Try fewer threads, or close other tabs, and open it again.'
+    : `The decoder stopped: ${error.split('\n')[0]}`);
+  await startWorker();
+  overlay(null);
+  restarting = false;
+}
+let info = {}, queue = [], shown = null, ended = false, asking = false, playing = false;
+let clock = 0, base = 0, duration = 0, decoded = 0, busy = 0, drops = 0, stepping = false, seeking = false;
+let busyAtOpen = 0, running = 0;
+// starved: the decoder stopped short of waiting on the network. buffering:
+// playback paused for it. buffered: the file's fraction downloaded ahead.
+let starved = false, buffering = false, buffered = 0, lastPoll = 0;
+const fmt = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+const mediaTime = () => base + (info.audio ? actx.currentTime - clock : (performance.now() - clock) / 1000);
+const startClock = () => {
+  base = shown?.t ?? 0;
+  clock = info.audio ? actx.currentTime + 0.1 : performance.now();
+};
+// One request at a time; frames and audio arrive with any of them.
+let chain = Promise.resolve();
+const call = (msg) => (chain = chain.then(() => new Promise((done) => {
+  worker.onmessage = (e) => {
+    const m = e.data;
+    if (m.frame) {
+      queue.push(m.frame);
+      decoded++;
+    } else if (m.audio) chunks.push(m.audio);
+    else if (m.log) log(m.log);
+    else if (m.progress) overlay(m.progress);
+    else if (m.end) ended = true;
+    else if (m.error) {
+      log(`error: ${m.error}\n`);
+      done(m);
+      if (!msg.open) stopped(m.error);
+    } else {
+      if (m.busy != null) busy = m.busy - busyAtOpen;
+      if (m.threads != null) running = m.threads;
+      if (m.starved != null) starved = m.starved;
+      if (m.buffered != null) buffered = m.buffered;
+      done(m);
+    }
+  };
+  worker.postMessage(msg);
+})));
+const ready = startWorker().then((m) => {
+  overlay(null);
+  const i = m.init;
+  if (!i) return;
+  $('lib').innerHTML = `FFmpeg 9.0.2 with libaltc264. Threads <span class="${i.threaded ? 'ok' : 'bad'}">${i.threaded ? 'available' : 'not available (single-threaded build)'}</span>.`;
+  return i;
+});
+
+// Decodes ahead; while starved, or buffering with the queue full, only asks
+// how much is downloaded.
+async function fill() {
+  if (!info.open || asking || ended) return;
+  const full = queue.length >= 8;
+  if (full && !buffering) return;
+  const poll = starved || full;
+  if (poll && performance.now() - lastPoll < 250) return;
+  asking = true;
+  lastPoll = performance.now();
+  await call(poll ? { status: true } : { pull: 4 });
+  asking = false;
+}
+
+// Seconds downloaded ahead of the picture shown, from the file fraction.
+const ahead = () => buffered * duration - (shown?.t ?? 0);
+
+function status() {
+  const cur = shown?.t ?? 0;
+  $('time').textContent = `${fmt(cur)} / ${fmt(duration)}`;
+  if (!seeking) $('seek').value = cur;
+  $('buffered').style.width = info.open ? `${Math.round(buffered * 100)}%` : '0';
+  const speed = busy ? (decoded / (busy / 1000)).toFixed(0) : '–';
+  $('run').textContent = shown
+    ? `${shown.sbs ? shown.w / 2 : shown.w}×${shown.h}, ${shown.sbs ? '3D (2 views)' : '2D'}, audio ${info.audio || 'none'}, decoding ${speed} frames/s, ${drops} dropped, ${running} decoder threads.`
+    : '';
+}
+
+function tick() {
+  if (playing && buffering) {
+    if (ended || (!starved && (ahead() >= 3 || buffered >= 1))) {
+      buffering = false;
+      overlay(null);
+      startClock();
+    }
+    status();
+  } else if (playing && starved && !queue.length && !ended) {
+    buffering = true;
+    stopAudio();
+    overlay('Buffering…');
+    status();
+  } else if (playing) {
+    const t = mediaTime();
+    let next = null;
+    while (queue.length && queue[0].t <= t) {
+      if (next) drops++;
+      next = queue.shift();
+    }
+    if (next) {
+      shown = next;
+      draw(shown);
+    } else if (ended && !queue.length) {
+      playing = false;
+      $('play').textContent = '▶';
+    }
+    scheduleAhead();
+    status();
+  }
+  fill();
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function pause() {
+  playing = false;
+  $('play').textContent = '▶';
+  stopAudio();
+}
+
+async function open(input, name) {
+  await ready;
+  for (const id of ['play', 'step', 'seek']) $(id).disabled = true;
+  overlay('Opening the video…');
+  if (info.open || ended) await startWorker();
+  info = {};
+  shown = null;
+  pause();
+  queue = [];
+  chunks = [];
+  ended = false;
+  decoded = 0;
+  fileLog = '';
+  drops = 0;
+  buffered = 0;
+  buffering = starved = false;
+  log(`${name}\n`);
+  overlay('Opening the video…');
+  const m = await call({ open: { input, threads: +$('threads').value, rate: actx.sampleRate } });
+  if (!m.opened && outOfMemory(fileLog + (m.error ?? ''))) return stopped(m.error ?? '');
+  if (!m.opened || m.opened.refused) overlay(null);
+  if (!m.opened) {
+    const cors = typeof input === 'string' && /NetworkError|Failed to load/.test(m.error ?? '');
+    alert(cors
+      ? "This server doesn't let other websites read the file (it sends no CORS header). Download it and open it with File instead."
+      : `This file could not be loaded: ${(m.error ?? '').split('\n')[0]}`);
+    return;
+  }
+  if (m.opened.refused) {
+    log(`${m.opened.refused}\n`);
+    alert(m.opened.refused);
+    return;
+  }
+  info = { ...m.opened, open: true };
+  duration = info.duration;
+  log(`${fmt(duration)}, ${info.fps.toFixed(3)} fps, audio ${info.audio || 'none'}\n`);
+  $('seek').max = duration;
+  await step();
+  overlay(null);
+  for (const id of ['play', 'step', 'seek']) $(id).disabled = false;
+}
+
+async function step() {
+  if (stepping) return;
+  stepping = true;
+  while (!queue.length && !ended) await call({ pull: 1, wait: true });
+  if (queue.length) {
+    shown = queue.shift();
+    draw(shown);
+  }
+  chunks = chunks.filter((c) => c.t >= (shown?.t ?? 0) - 0.05);
+  status();
+  stepping = false;
+}
+
+$('sample').onchange = () => {
+  const url = $('sample').value;
+  if (url) open(new URL(url, location.href).href, url.split('/').pop());
+};
+$('file').onchange = () => {
+  const f = $('file').files[0];
+  if (f) open(f, f.name);
+};
+$('load').onclick = () => {
+  const url = $('url').value;
+  if (url) open(url, url.split('/').pop());
+};
+$('play').onclick = () => {
+  if (playing) return pause();
+  actx.resume();
+  playing = true;
+  $('play').textContent = '❚❚';
+  startClock();
+};
+$('step').onclick = () => {
+  pause();
+  step();
+};
+$('seek').oninput = () => (seeking = true);
+$('seek').onchange = async () => {
+  const t = +$('seek').value;
+  const was = playing;
+  pause();
+  buffering = false;
+  // Shown only if the seek is slow, so quick seeks don't flash.
+  const slow = setTimeout(() => overlay('Loading…'), 250);
+  await call({ seek: t });
+  queue = [];
+  chunks = [];
+  ended = false;
+  await step();
+  clearTimeout(slow);
+  overlay(null);
+  seeking = false;
+  if (was) {
+    playing = true;
+    $('play').textContent = '❚❚';
+    startClock();
+  }
+};
+for (const id of ['mode', 'swap']) $(id).onchange = () => draw(shown);
+
+// The bar hides while playing after 2.5 s without pointer movement.
+let idle;
+const wake = () => {
+  $('stage').classList.remove('idle');
+  clearTimeout(idle);
+  idle = setTimeout(() => playing && $('stage').classList.add('idle'), 2500);
+};
+for (const e of ['pointermove', 'pointerdown']) $('stage').addEventListener(e, wake);
+canvas.onclick = () => !$('play').disabled && $('play').click();
+const jump = (dt) => {
+  if ($('seek').disabled) return;
+  $('seek').value = Math.max(0, Math.min(duration, (shown?.t ?? 0) + dt));
+  $('seek').onchange();
+};
+document.addEventListener('keydown', (e) => {
+  if (['INPUT', 'SELECT'].includes(e.target.tagName) && e.target.type !== 'range') return;
+  if (e.key === ' ') $('play').click();
+  else if (e.key === 'ArrowLeft') jump(-5);
+  else if (e.key === 'ArrowRight') jump(5);
+  else if (e.key === 'f' && !$('full').hidden) $('full').click();
+  else return;
+  e.preventDefault();
+  wake();
+});
+// iPhone Safari has no full screen for elements: no button there.
+const stage = $('stage');
+$('full').hidden = !(stage.requestFullscreen ?? stage.webkitRequestFullscreen);
+$('full').onclick = () => {
+  if (document.fullscreenElement ?? document.webkitFullscreenElement) (document.exitFullscreen ?? document.webkitExitFullscreen).call(document);
+  else (stage.requestFullscreen ?? stage.webkitRequestFullscreen).call(stage);
+};
+</script>
+</body>
+</html>
