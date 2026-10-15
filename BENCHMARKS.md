@@ -16,7 +16,7 @@ Frames per second (best of 5), with altc264's speed relative to FFmpeg in bracke
 | Intel Core Ultra X9 388H | 108.7 vs 114.8 (0.95×) | 360.3 vs 289.6 (**1.24×**) |
 | AMD Ryzen AI 9 HX 370 | 95.7 vs 108.6 (0.88×) | 409.8 vs 351.0 (**1.17×**) |
 | Qualcomm QCM6490 | 51.8 vs 49.1 (**1.05×**) | 191.2 vs 167.3 (**1.14×**) |
-| WebAssembly (Node 22, on the M4 Pro) | 77.7 vs 62.5 (**1.24×**) | not supported yet |
+| WebAssembly (Node 24, on the Apple M4 Pro) | 77.2 vs 62.3 (**1.24×**) | 427.4 vs 272.0 (**1.57×**) |
 
 ### 3D (MVC): Big Buck Bunny 3D, 1080p
 
@@ -29,7 +29,7 @@ comparison is on the first view.
 | Intel Core Ultra X9 388H | 151.2 vs 164.5 (0.92×) | 539.0 vs 467.6 (**1.15×**) |
 | AMD Ryzen AI 9 HX 370 | 128.2 vs 154.6 (0.83×) | 603.9 vs 509.3 (**1.19×**) |
 | Qualcomm QCM6490 | 72.1 vs 68.9 (**1.05×**) | 246.0 vs 239.7 (**1.03×**) |
-| WebAssembly (Node 22, on the M4 Pro) | 97.1 vs 81.3 (**1.19×**) | not supported yet |
+| WebAssembly (Node 24, on the Apple M4 Pro) | 99.7 vs 82.3 (**1.21×**) | 504.2 vs 332.0 (**1.52×**) |
 
 altc264 decoding both views:
 
@@ -39,12 +39,7 @@ altc264 decoding both views:
 | Intel Core Ultra X9 388H | 73.5 | 300.8 |
 | AMD Ryzen AI 9 HX 370 | 61.7 | 339.0 |
 | Qualcomm QCM6490 | 36.1 | 123.9 |
-| WebAssembly (Node 22, on the M4 Pro) | 48.2 | not supported yet |
-
-### Reading the numbers
-
-- WebAssembly runs single-threaded: threads in WebAssembly are not supported
-  yet, by either build.
+| WebAssembly (Node 24, on the Apple M4 Pro) | 48.2 | 305.7 |
 
 ## Clips
 
@@ -89,10 +84,11 @@ licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).
   Linux (kernel 7.2), and the QCM6490 on Ubuntu 24.04 (kernel 6.8), running a
   static aarch64-musl build. altc264 is built with `cargo build --release`
   and Rust 1.98 on every machine, with no CPU-specific flags.
-- **WebAssembly:** both decoders single-threaded under Node 22: altc264's
-  `wasm32-wasip1` build with SIMD128 (`tools/wasi-run.mjs`), and FFmpeg 9.0.2
-  compiled with Emscripten by `tools/bench/build-ffmpeg-wasm.sh` (`-O3
-  -msimd128`, no assembly, as in-browser FFmpeg ports are).
+- **WebAssembly:** both decoders threaded, under Node 24: altc264's
+  `wasm32-wasip1-threads` build with SIMD128 (`tools/wasi-run.mjs`, each
+  thread a worker), and FFmpeg 9.0.2 compiled with Emscripten pthreads and
+  memory growth by `MT=1 tools/bench/build-ffmpeg-wasm.sh` (`-O3 -msimd128`, no assembly, as
+  in-browser FFmpeg ports are).
 
 ### Reproducing
 
@@ -101,4 +97,9 @@ tools/bench/build-ffmpeg.sh                      # -> work/bench/bench-ffmpeg
 cargo build --release -p altc264-cli
 tools/bench/bench.sh target/release/altc264 work/bench/bench-ffmpeg bbb-1080-10s.264 "taskset -c 0"
 tools/bench/bench.sh target/release/altc264 work/bench/bench-ffmpeg bbb3d-mvc-10s.264 "taskset -c 0"
+
+# WebAssembly
+MT=1 tools/bench/build-ffmpeg-wasm.sh            # -> work/bench/bench-ffmpeg-wasm-mt.js
+cargo build --release -p altc264-cli --target wasm32-wasip1-threads
+tools/bench/bench.sh tools/bench/wasm-altc264.sh tools/bench/wasm-ffmpeg.sh bbb-1080-10s.264
 ```

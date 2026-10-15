@@ -16,7 +16,7 @@ ROWS_2D = [
     ("Intel Core Ultra X9 388H", (108.7, 114.8), (360.3, 289.6)),
     ("AMD Ryzen AI 9 HX 370", (95.7, 108.6), (409.8, 351.0)),
     ("Qualcomm QCM6490", (51.8, 49.1), (191.2, 167.3)),
-    ("WebAssembly (SIMD128)", (77.7, 62.5), None),
+    ("WebAssembly (SIMD128)", (77.2, 62.3), (427.4, 272.0)),
 ]
 CHARTS = [
     ("benchmark", "Big Buck Bunny 1080p: frames per second (higher is faster)", ROWS_2D),

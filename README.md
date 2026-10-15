@@ -45,7 +45,7 @@ conformance suites, which CI checks on every change.
 | Android | arm64-v8a, x86_64 | NEON, SSE2/AVX2 |
 | Linux | x86_64, aarch64 | SSE2/AVX2, NEON |
 | Windows | x86_64, arm64 | SSE2/AVX2, NEON |
-| WebAssembly | wasm32 (WASI) | SIMD128, single-threaded for now |
+| WebAssembly | wasm32 (WASI) | SIMD128, threaded where the host allows it |
 
 Other targets build with the portable fallback.
 
@@ -74,7 +74,7 @@ Frames per second decoding both views of a 3D clip of Big Buck Bunny ([`bbb3d-mv
 | Intel Core Ultra X9 388H | 74 | 301 |
 | AMD Ryzen AI 9 HX 370 | 62 | 339 |
 | Qualcomm QCM6490 | 36 | 124 |
-| WebAssembly (SIMD128) | 48 |  |
+| WebAssembly (SIMD128) | 48 | 306 |
 
 Full details in [BENCHMARKS.md](https://github.com/ALT-C-TECHNOLOGY/altc264/blob/main/BENCHMARKS.md).
 

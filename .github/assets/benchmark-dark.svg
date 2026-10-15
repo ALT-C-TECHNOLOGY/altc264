@@ -36,10 +36,10 @@
 <rect x="210" y="273" width="87.1" height="15" rx="3" fill="#4a525c"/>
 <text x="303.1" y="285" class="m">49</text>
 <text x="540" y="275" text-anchor="end" class="r">1.05×</text>
-<rect x="210" y="300" width="137.8" height="15" rx="3" fill="url(#brand)"/>
-<text x="353.8" y="312" class="v">78</text>
-<rect x="210" y="319" width="110.8" height="15" rx="3" fill="#4a525c"/>
-<text x="326.8" y="331" class="m">62</text>
+<rect x="210" y="300" width="136.9" height="15" rx="3" fill="url(#brand)"/>
+<text x="352.9" y="312" class="v">77</text>
+<rect x="210" y="319" width="110.5" height="15" rx="3" fill="#4a525c"/>
+<text x="326.5" y="331" class="m">62</text>
 <text x="540" y="321" text-anchor="end" class="r">1.24×</text>
 <text x="580" y="96" class="h">8 threads</text>
 <rect x="580" y="116" width="235.0" height="15" rx="3" fill="url(#brand)"/>
@@ -62,5 +62,9 @@
 <rect x="580" y="273" width="68.0" height="15" rx="3" fill="#4a525c"/>
 <text x="654.0" y="285" class="m">167</text>
 <text x="910" y="275" text-anchor="end" class="r">1.14×</text>
-<text x="580" y="319" class="m">not supported yet</text>
+<rect x="580" y="300" width="173.7" height="15" rx="3" fill="url(#brand)"/>
+<text x="759.7" y="312" class="v">427</text>
+<rect x="580" y="319" width="110.6" height="15" rx="3" fill="#4a525c"/>
+<text x="696.6" y="331" class="m">272</text>
+<text x="910" y="321" text-anchor="end" class="r">1.57×</text>
 </svg>
