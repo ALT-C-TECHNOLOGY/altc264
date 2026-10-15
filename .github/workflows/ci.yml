@@ -83,6 +83,25 @@ jobs:
       - run: cargo test -p altc264 --release --target wasm32-wasip1
       - run: cargo build -p altc264-cli --release --target wasm32-wasip1
 
+  wasm-threads:
+    name: test (wasm32 threads, SIMD128)
+    runs-on: ubuntu-24.04
+    env:
+      # SIMD128, the 4 GiB memory limit and the allocator wrap come from
+      # .cargo/config.toml.
+      CARGO_TARGET_WASM32_WASIP1_THREADS_RUNNER: node --no-warnings ${{ github.workspace }}/tools/wasi-run.mjs
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1-threads
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p altc264 --release --target wasm32-wasip1-threads
+      - run: cargo build -p altc264-cli --release --target wasm32-wasip1-threads
+
   msrv:
     runs-on: ubuntu-24.04
     steps:
