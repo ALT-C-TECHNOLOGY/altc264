@@ -134,8 +134,8 @@ static int output_picture(AVCodecContext *avctx, AVFrame *frame, Altc264Picture 
         return ret;
     if ((ret = ff_get_buffer(avctx, frame, 0)) < 0)
         return ret;
-    av_image_copy2(frame->data, frame->linesize, src, src_stride,
-                   avctx->pix_fmt, p->width, p->height);
+    av_image_copy(frame->data, frame->linesize, src, src_stride,
+                  avctx->pix_fmt, p->width, p->height);
     frame->pts = p->has_pts ? p->pts : AV_NOPTS_VALUE;
 
     if (s->stereo_layout != ALTC264_STEREO_SEPARATE) {
