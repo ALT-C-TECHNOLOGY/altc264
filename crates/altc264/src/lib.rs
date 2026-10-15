@@ -78,6 +78,8 @@ pub mod slice_decoder;
 pub mod sp;
 pub mod stereo;
 pub mod transform;
+#[cfg(altc_wasm_threads)]
+mod wasm;
 
 use core::fmt;
 

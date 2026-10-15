@@ -14,7 +14,7 @@
 //! workers run inline on the calling thread.
 
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, SyncSender, channel, sync_channel};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
@@ -1523,6 +1523,22 @@ impl Worker {
     }
 }
 
+impl Drop for Decoder {
+    // Stops the view threads and waits for them, so their threads and
+    // pictures are released when the decoder is.
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        for w in std::mem::take(&mut self.workers) {
+            if let Worker::Thread { tx, mut handle } = w {
+                drop(tx);
+                if let Some(h) = handle.take() {
+                    let _ = h.join();
+                }
+            }
+        }
+    }
+}
+
 /// Access units waiting for a view before one is output anyway (see
 /// `next_frame`).
 const MAX_PENDING: usize = 32;
@@ -1539,6 +1555,10 @@ pub struct Decoder {
     prefix: Option<MvcExtension>,
     au: u64,
     workers: Vec<Worker>,
+    // Set on drop: view threads stop instead of decoding what is queued.
+    stop: Arc<AtomicBool>,
+    #[cfg(test)]
+    live_views: Arc<std::sync::atomic::AtomicUsize>,
     /// The pictures started so far in the current access unit.
     au_views: Vec<(u16, Arc<PicSlot>)>,
     next_id: Arc<AtomicU32>,
@@ -1602,7 +1622,7 @@ impl Decoder {
     /// wasm32 built without `atomics`), every count decodes on the calling
     /// thread, as 0 does.
     pub fn with_threads(threads: usize) -> Self {
-        let threads = if cfg!(all(target_family = "wasm", not(target_feature = "atomics"))) {
+        let threads = if cfg!(target_family = "wasm") && !wasm_threads() {
             0
         } else {
             threads
@@ -1617,6 +1637,9 @@ impl Decoder {
             prefix: None,
             au: 0,
             workers: Vec::new(),
+            stop: Arc::new(AtomicBool::new(false)),
+            #[cfg(test)]
+            live_views: Arc::default(),
             au_views: Vec::new(),
             next_id: Arc::new(AtomicU32::new(0)),
             errors: Arc::new(Errors::default()),
@@ -1687,10 +1710,20 @@ impl Decoder {
             } else {
                 let (tx, rx) = sync_channel::<Msg>(64);
                 let mut vd = vd;
+                let stop = self.stop.clone();
+                #[cfg(test)]
+                let live = self.live_views.clone();
+                #[cfg(test)]
+                live.fetch_add(1, Ordering::SeqCst);
                 let handle = std::thread::Builder::new()
                     .name(format!("altc264-view{}", self.workers.len()))
                     .spawn(move || {
+                        #[cfg(test)]
+                        let _live = LiveView(live);
                         while let Ok(m) = rx.recv() {
+                            if stop.load(Ordering::Relaxed) {
+                                break;
+                            }
                             vd.handle(m);
                         }
                     })
@@ -2043,5 +2076,58 @@ impl Decoder {
                         .any(|(_, g)| g.get(v).is_some_and(Option::is_some))
                     || self.au > au && self.pic_au.get(v).is_none_or(|&a| a < au)
             })
+    }
+}
+
+/// Whether this WebAssembly build can spawn threads. Stable cfg can't tell.
+fn wasm_threads() -> bool {
+    static THREADS: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *THREADS.get_or_init(|| {
+        std::thread::Builder::new()
+            .spawn(|| {})
+            .is_ok_and(|t| t.join().is_ok())
+    })
+}
+
+/// Counts a view thread as live until it ends (tests).
+#[cfg(test)]
+struct LiveView(Arc<std::sync::atomic::AtomicUsize>);
+
+#[cfg(test)]
+impl Drop for LiveView {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+#[cfg(test)]
+mod drop_tests {
+    use super::*;
+
+    // Dropping a decoder mid-stream ends its view threads before drop
+    // returns, instead of leaving them decoding the queued access units.
+    #[test]
+    #[cfg_attr(target_family = "wasm", ignore = "no threads")]
+    fn drop_mid_stream_ends_view_threads() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../work/conformance/MVC/MVCDS-6.264"
+        );
+        let Ok(data) = std::fs::read(path) else {
+            eprintln!("skipped: {path} missing (cargo xtask conformance)");
+            return;
+        };
+        for _ in 0..5 {
+            let mut dec = Decoder::with_threads(4);
+            dec.decode_annex_b(&data[..data.len() / 2]);
+            let live = dec.live_views.clone();
+            assert!(live.load(Ordering::SeqCst) > 0, "no view threads to test");
+            drop(dec);
+            assert_eq!(
+                live.load(Ordering::SeqCst),
+                0,
+                "view threads still running after drop"
+            );
+        }
     }
 }

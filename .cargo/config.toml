@@ -1,2 +1,18 @@
 [alias]
 xtask = "run --release --package xtask --"
+
+# Threaded WebAssembly: SIMD128, memory up to 4 GiB, and the allocator
+# wrapped by crates/altc264/src/wasm.rs.
+[target.wasm32-wasip1-threads]
+rustflags = [
+  "-C", "target-feature=+simd128",
+  "--cfg", "altc_wasm_threads",
+  "-C", "link-arg=--max-memory=4294967296",
+  "-C", "link-arg=--wrap=malloc",
+  "-C", "link-arg=--wrap=calloc",
+  "-C", "link-arg=--wrap=realloc",
+  "-C", "link-arg=--wrap=free",
+  "-C", "link-arg=--wrap=aligned_alloc",
+  "-C", "link-arg=--wrap=posix_memalign",
+  "-C", "link-arg=--wrap=sbrk",
+]
