@@ -1,0 +1,47 @@
+name: Pages
+
+# The in-browser player (tools/web) on GitHub Pages: on each version release
+# (its v* tag must be allowed in the github-pages environment), or by hand.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name != 'release' || startsWith(github.ref_name, 'v')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1, wasm32-wasip1-threads
+      - uses: Swatinem/rust-cache@v2
+      - run: tools/web/build.sh
+      - run: gh release download benchmark-clips -p bbb-1080-10s.mp4 -p bbb3d-mvc-10s.mkv -D clips
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: tools/web/site.sh site clips
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
