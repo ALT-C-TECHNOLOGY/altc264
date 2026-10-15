@@ -22,7 +22,8 @@
 altc264 decodes H.264 from Baseline to the professional 4:4:4 profiles, and
 both views of Blu-ray 3D and other MVC streams, fast enough for real-time
 stereo playback on XR headsets. It is bit-exact against the ITU-T H.264.1
-conformance suites, which CI checks on every change.
+conformance suites, which CI checks on every change. Live browser demo
+available [here](https://alt-c-technology.github.io/altc264/).
 
 ## Features
 

@@ -3,7 +3,7 @@
 <style>.t{font-size:18px;font-weight:600;fill:#e6edf3}.h{font-size:14px;font-weight:600;fill:#e6edf3}.l{font-size:13px;fill:#e6edf3}.v{font-size:12px;font-weight:600;fill:#e6edf3}.m{font-size:12px;fill:#8b949e}.r{font-size:13px;font-weight:700;fill:#2fbf8f}</style>
 <rect width="960" height="386" rx="12" fill="#0d1117"/>
 <text x="24" y="34" class="t">Big Buck Bunny 1080p: frames per second (higher is faster)</text>
-<rect x="24" y="48" width="12" height="12" rx="2" fill="url(#brand)"/><text x="42" y="58" class="l">altc264 0.1.0</text>
+<rect x="24" y="48" width="12" height="12" rx="2" fill="url(#brand)"/><text x="42" y="58" class="l">altc264 0.1.1</text>
 <rect x="150" y="48" width="12" height="12" rx="2" fill="#4a525c"/><text x="168" y="58" class="l">FFmpeg 9.0.2</text>
 <line x1="24" x2="936" y1="156" y2="156" stroke="#21262d"/>
 <text x="24" y="137" class="l">Apple M4 Pro</text>

@@ -49,8 +49,9 @@ build() {
 	mkdir -p "$prefix/lib/pkgconfig" "$prefix/include" "$dir"
 	cp "$OUT/cargo/$target/release/libaltc264.a" "$prefix/lib/"
 	cp crates/altc264-capi/include/altc264.h "$prefix/include/"
-	printf 'Name: altc264\nDescription: H.264/AVC and MVC video decoder\nVersion: 0.1.0\nLibs: -L%s -laltc264\nCflags: -I%s\n' \
-		"$prefix/lib" "$prefix/include" > "$prefix/lib/pkgconfig/altc264.pc"
+	version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+	printf 'Name: altc264\nDescription: H.264/AVC and MVC video decoder\nVersion: %s\nLibs: -L%s -laltc264\nCflags: -I%s\n' \
+		"$version" "$prefix/lib" "$prefix/include" > "$prefix/lib/pkgconfig/altc264.pc"
 	# FFmpeg: demuxers, libaltc264 and the common audio decoders.
 	cd "$dir"
 	[ -f ffbuild/config.mak ] || PKG_CONFIG_PATH=$prefix/lib/pkgconfig ../src/configure \

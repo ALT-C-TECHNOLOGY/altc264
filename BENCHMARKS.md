@@ -2,7 +2,7 @@
 
 altc264 against FFmpeg's H.264 decoder (libavcodec, FFmpeg 9.0.2, with its
 hand-written assembly), decoding two public clips at 1 and 8 threads.
-Measured October 2026 with altc264 0.1.0.
+Measured October 2026 with altc264 0.1.1.
 
 ## Results
 
