@@ -258,7 +258,7 @@ const FFCodec ff_libaltc264_decoder = {
     .flush          = libaltc264_flush,
     FF_CODEC_RECEIVE_FRAME_CB(libaltc264_receive_frame),
     .p.capabilities = AV_CODEC_CAP_DELAY | AV_CODEC_CAP_OTHER_THREADS,
-    .caps_internal  = FF_CODEC_CAP_NOT_INIT_THREADSAFE,
+    .caps_internal  = FF_CODEC_CAP_NOT_INIT_THREADSAFE | FF_CODEC_CAP_AUTO_THREADS,
     .p.priv_class   = &libaltc264_class,
     .p.wrapper_name = "libaltc264",
 };
