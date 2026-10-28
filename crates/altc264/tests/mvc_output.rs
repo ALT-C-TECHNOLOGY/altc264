@@ -41,6 +41,27 @@ fn access_units(data: &[u8]) -> Vec<Vec<&[u8]>> {
     aus
 }
 
+/// Packets as mkvmerge stores an MVC elementary stream: each holds the
+/// non-base view of the previous access unit, then the base view of its
+/// own, so a cut between packets leaves the last access unit without its
+/// non-base view and a seek starts with one whose base view is missing.
+fn mkvmerge_packets<'a>(aus: &[Vec<&'a [u8]>]) -> Vec<Vec<&'a [u8]>> {
+    (0..aus.len())
+        .map(|k| {
+            let mut p: Vec<&[u8]> = match k {
+                0 => Vec::new(),
+                _ => aus[k - 1]
+                    .iter()
+                    .copied()
+                    .filter(|n| nal_type(n) == EXT)
+                    .collect(),
+            };
+            p.extend(aus[k].iter().copied().filter(|n| nal_type(n) != EXT));
+            p
+        })
+        .collect()
+}
+
 /// Parameter sets, as a container's codec configuration.
 fn parameter_sets<'a>(aus: &[Vec<&'a [u8]>]) -> Vec<&'a [u8]> {
     aus.iter()
@@ -176,4 +197,30 @@ fn drained_mid_gop_outputs_in_order() {
     drained_mid_gop("MVCDS-4.264", 1..=9);
     // An I picture every 4 access units, B pictures between.
     drained_mid_gop("MVCDS2.264", 1..=24);
+}
+
+#[test]
+fn views_of_an_access_unit_share_its_timestamp() {
+    let Some(data) = stream("MVCDS2.264") else {
+        eprintln!("conformance streams not downloaded; skipping");
+        return;
+    };
+    let aus = access_units(&data);
+    let params = parameter_sets(&aus);
+    let packets: Vec<(i64, Vec<&[u8]>)> = mkvmerge_packets(&aus)
+        .into_iter()
+        .enumerate()
+        .map(|(i, p)| (i as i64, p))
+        .collect();
+    // Drained between packets: the last access unit has no non-base view.
+    for n in (1..=40).chain([packets.len()]) {
+        let last = n as i64 - 1;
+        check(
+            &format!("mkvmerge packets, drained after {n}"),
+            &params,
+            &packets[..n],
+            &[],
+            |pts| pts != last,
+        );
+    }
 }

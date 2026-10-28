@@ -128,7 +128,8 @@ typedef struct Altc264Picture {
   int view_id;
   int poc;
   /**
-   * Timestamp passed with the packet that started this picture.
+   * Timestamp passed with the packet that started this picture's access
+   * unit (with its base view picture).
    */
   int64_t pts;
   int has_pts;
@@ -175,7 +176,8 @@ int altc264_set_extradata(struct Altc264Decoder *dec, const uint8_t *data, size_
 
 /**
  * Decodes one packet (an access unit or part of one). `has_pts` says
- * whether `pts` is valid; it is returned with the pictures this packet starts.
+ * whether `pts` is valid; it is returned with the pictures of the access
+ * units this packet starts.
  */
 int altc264_send_data(struct Altc264Decoder *dec,
                       const uint8_t *data,

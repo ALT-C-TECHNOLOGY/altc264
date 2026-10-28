@@ -93,7 +93,8 @@ pub struct Altc264Picture {
     /// MVC view_id (0 for the base view).
     pub view_id: c_int,
     pub poc: c_int,
-    /// Timestamp passed with the packet that started this picture.
+    /// Timestamp passed with the packet that started this picture's access
+    /// unit (with its base view picture).
     pub pts: i64,
     pub has_pts: c_int,
     /// Blu-ray 3D plane offsets, one per offset sequence, or NULL.
@@ -227,7 +228,8 @@ pub unsafe extern "C" fn altc264_set_extradata(
 }
 
 /// Decodes one packet (an access unit or part of one). `has_pts` says
-/// whether `pts` is valid; it is returned with the pictures this packet starts.
+/// whether `pts` is valid; it is returned with the pictures of the access
+/// units this packet starts.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn altc264_send_data(
     dec: *mut Altc264Decoder,

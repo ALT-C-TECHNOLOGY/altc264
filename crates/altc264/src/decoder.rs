@@ -1650,6 +1650,9 @@ pub struct Decoder {
     pub frame_threading: bool,
     jobs: Option<Option<Arc<JobQueue>>>,
     pts: Option<i64>,
+    /// The timestamp of the current access unit: the one set when its base
+    /// view picture started.
+    au_pts: Option<i64>,
 }
 
 impl Default for Decoder {
@@ -1717,6 +1720,7 @@ impl Decoder {
             frame_threading: true,
             jobs: None,
             pts: None,
+            au_pts: None,
         }
     }
 
@@ -1798,8 +1802,9 @@ impl Decoder {
         &mut self.workers[voidx]
     }
 
-    /// Sets the timestamp attached to pictures that start from now on (for
-    /// example the PTS of the next container packet).
+    /// Sets the timestamp attached to access units that start from now on
+    /// (for example the PTS of the next container packet): every view of an
+    /// access unit has the timestamp set when its base view picture started.
     pub fn set_timestamp(&mut self, pts: Option<i64>) {
         self.pts = pts;
     }
@@ -1929,6 +1934,7 @@ impl Decoder {
             if voidx == 0 {
                 self.au += 1;
                 self.au_views.clear();
+                self.au_pts = self.pts;
             }
             if self.pic_au.len() <= voidx {
                 self.pic_au.resize(voidx + 1, 0);
@@ -1972,7 +1978,9 @@ impl Decoder {
             au: self.au,
             period: self.period,
             view_id,
-            pts: self.pts,
+            // Every view of an access unit has its timestamp, wherever the
+            // container put the non-base views.
+            pts: self.au_pts,
             publish,
             earlier_views,
         };
@@ -1998,6 +2006,7 @@ impl Decoder {
         self.ready.clear();
         self.flushed = false;
         self.pts = None;
+        self.au_pts = None;
         // Access units after the seek are told apart from those before.
         self.au += 1;
     }
