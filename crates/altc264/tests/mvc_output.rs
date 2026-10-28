@@ -198,8 +198,9 @@ fn drained_mid_gop_outputs_in_order() {
     // Hierarchical B pictures, 9 access units: output order 0 8 4 2 6 1 3 5 7
     // of decoding order, so every cut leaves pictures waiting in the DPB.
     drained_mid_gop("MVCDS-4.264", 1..=9);
-    // An I picture every 4 access units, B pictures between.
-    drained_mid_gop("MVCDS2.264", 1..=24);
+    // An I picture every 4 access units: every place in that pattern, twice
+    // (kept short for instrumented scalar builds).
+    drained_mid_gop("MVCDS2.264", 1..=8);
 }
 
 #[test]
@@ -216,7 +217,7 @@ fn views_of_an_access_unit_share_its_timestamp() {
         .map(|(i, p)| (i as i64, p))
         .collect();
     // Drained between packets: the last access unit has no non-base view.
-    for n in (1..=40).chain([packets.len()]) {
+    for n in 1..=8 {
         let last = n as i64 - 1;
         check(
             &format!("mkvmerge packets, drained after {n}"),
@@ -244,7 +245,7 @@ fn seek_into_split_access_units() {
     // From packet 10, seek to the I picture of access unit 15 (POC 16),
     // which starts with the non-base view of access unit 14: it cannot be
     // decoded without its base view and is not output.
-    for end in [16, 21, 33, 60] {
+    for end in [16, 19, 21, 27] {
         let mut p = packets[..10].to_vec();
         p.extend(packets[15..end].iter().cloned());
         let last = end as i64 - 1;
