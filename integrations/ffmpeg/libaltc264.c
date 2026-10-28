@@ -40,6 +40,13 @@ static const uint8_t plane_offsets_uuid[16] = {
     0x9b, 0x52, 0x6c, 0x21, 0x64, 0x70, 0x6c, 0x6f,
 };
 
+/* The properties (timestamps, duration, side data, flags, opaque) of the
+ * last packets sent, by sequence number: altc264 returns the number of the
+ * packet that started each picture's access unit as its timestamp, through
+ * reordering. More packets than pictures the decoder holds at once (its
+ * DPB and frame threads). */
+#define NB_PACKET_PROPS 1024
+
 typedef struct LibAltc264Context {
     const AVClass *class;
     Altc264Decoder *dec;
@@ -49,6 +56,8 @@ typedef struct LibAltc264Context {
     int base_view;
     int base_right;
     int drained;
+    AVPacket *props[NB_PACKET_PROPS];
+    uint64_t next_packet;
 } LibAltc264Context;
 
 static av_cold int libaltc264_init(AVCodecContext *avctx)
@@ -90,6 +99,8 @@ static av_cold int libaltc264_close(AVCodecContext *avctx)
 {
     LibAltc264Context *s = avctx->priv_data;
     altc264_close(&s->dec);
+    for (int i = 0; i < NB_PACKET_PROPS; i++)
+        av_packet_free(&s->props[i]);
     return 0;
 }
 
@@ -136,7 +147,18 @@ static int output_picture(AVCodecContext *avctx, AVFrame *frame, Altc264Picture 
         return ret;
     av_image_copy(frame->data, frame->linesize, src, src_stride,
                   avctx->pix_fmt, p->width, p->height);
-    frame->pts = p->has_pts ? p->pts : AV_NOPTS_VALUE;
+    /* The packet that started the picture's access unit, unless so many
+     * have followed that its properties are gone. */
+    if (p->has_pts && (uint64_t)p->pts < s->next_packet &&
+        s->next_packet - (uint64_t)p->pts <= NB_PACKET_PROPS) {
+        ret = ff_decode_frame_props_from_pkt(avctx, frame,
+                                             s->props[(uint64_t)p->pts % NB_PACKET_PROPS]);
+        if (ret < 0)
+            return ret;
+    } else {
+        frame->pts      = AV_NOPTS_VALUE;
+        frame->duration = 0;
+    }
 
     if (s->stereo_layout != ALTC264_STEREO_SEPARATE) {
         /* One packed frame per access unit. Frame packing has its gap
@@ -216,7 +238,20 @@ static int libaltc264_receive_frame(AVCodecContext *avctx, AVFrame *frame)
             av_packet_free(&pkt);
             return ret;
         }
-        altc264_send_data(s->dec, pkt->data, pkt->size, pkt->pts, pkt->pts != AV_NOPTS_VALUE);
+        {
+            AVPacket **props = &s->props[s->next_packet % NB_PACKET_PROPS];
+            if (!*props && !(*props = av_packet_alloc())) {
+                av_packet_free(&pkt);
+                return AVERROR(ENOMEM);
+            }
+            av_packet_unref(*props);
+            ret = av_packet_copy_props(*props, pkt);
+            if (ret < 0) {
+                av_packet_free(&pkt);
+                return ret;
+            }
+        }
+        altc264_send_data(s->dec, pkt->data, pkt->size, (int64_t)s->next_packet++, 1);
         av_packet_free(&pkt);
     }
 }
@@ -258,7 +293,8 @@ const FFCodec ff_libaltc264_decoder = {
     .flush          = libaltc264_flush,
     FF_CODEC_RECEIVE_FRAME_CB(libaltc264_receive_frame),
     .p.capabilities = AV_CODEC_CAP_DELAY | AV_CODEC_CAP_OTHER_THREADS,
-    .caps_internal  = FF_CODEC_CAP_NOT_INIT_THREADSAFE | FF_CODEC_CAP_AUTO_THREADS,
+    .caps_internal  = FF_CODEC_CAP_NOT_INIT_THREADSAFE | FF_CODEC_CAP_AUTO_THREADS |
+                      FF_CODEC_CAP_SETS_FRAME_PROPS,
     .p.priv_class   = &libaltc264_class,
     .p.wrapper_name = "libaltc264",
 };
