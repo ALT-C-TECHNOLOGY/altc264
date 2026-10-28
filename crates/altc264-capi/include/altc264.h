@@ -129,7 +129,7 @@ typedef struct Altc264Picture {
   int poc;
   /**
    * Timestamp passed with the packet that started this picture's access
-   * unit (with its base view picture).
+   * unit.
    */
   int64_t pts;
   int has_pts;

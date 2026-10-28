@@ -94,7 +94,7 @@ pub struct Altc264Picture {
     pub view_id: c_int,
     pub poc: c_int,
     /// Timestamp passed with the packet that started this picture's access
-    /// unit (with its base view picture).
+    /// unit.
     pub pts: i64,
     pub has_pts: c_int,
     /// Blu-ray 3D plane offsets, one per offset sequence, or NULL.

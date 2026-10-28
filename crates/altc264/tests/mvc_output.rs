@@ -1,9 +1,7 @@
-//! MVC output when decoding ends or starts part-way through a GOP, as when
-//! a player or transcoder drains the decoder at a segment boundary or seeks:
-//! the frames come out in output order with the timestamps of their access
-//! units, the views of each access unit together, as the base view alone
-//! would. Uses the ITU conformance streams in work/conformance and skips
-//! when they are absent.
+//! MVC output drained or seeked part-way through a GOP matches the base
+//! view's: order, timestamps, views of an access unit together. Uses the
+//! ITU conformance streams in work/conformance and skips when they are
+//! absent.
 use altc264::decoder::Decoder;
 use altc264::nal::AnnexBIter;
 use altc264::stereo::StereoLayout;
@@ -20,9 +18,8 @@ fn nal_type(nal: &[u8]) -> u8 {
     nal[0] & 31
 }
 
-/// The NAL units of each access unit of a two-view stream whose access
-/// units all end with the non-base view: one starts at the first NAL unit
-/// after a slice extension that is not one (7.4.1.2.3).
+/// The NAL units of each access unit of a two-view stream in which every
+/// access unit ends with a slice extension.
 fn access_units(data: &[u8]) -> Vec<Vec<&[u8]>> {
     let mut aus: Vec<Vec<&[u8]>> = Vec::new();
     let mut after_ext = true;
@@ -41,10 +38,8 @@ fn access_units(data: &[u8]) -> Vec<Vec<&[u8]>> {
     aus
 }
 
-/// Packets as mkvmerge stores an MVC elementary stream: each holds the
-/// non-base view of the previous access unit, then the base view of its
-/// own, so a cut between packets leaves the last access unit without its
-/// non-base view and a seek starts with one whose base view is missing.
+/// Packets as mkvmerge stores MVC: the non-base view of the previous access
+/// unit, then the base view of this one.
 fn mkvmerge_packets<'a>(aus: &[Vec<&'a [u8]>]) -> Vec<Vec<&'a [u8]>> {
     (0..aus.len())
         .map(|k| {
@@ -85,9 +80,8 @@ enum Views {
     SideBySide,
 }
 
-/// Decodes `packets` (timestamp, NAL units), with a seek (Decoder::discard)
-/// before the packet at each index in `seeks`, and drains the decoder: the
-/// frames after the last seek.
+/// Decodes `packets` (timestamp, NAL units) with Decoder::discard before
+/// each index in `seeks`; returns the frames after the last one.
 fn decode(
     params: &[&[u8]],
     packets: &[(i64, Vec<&[u8]>)],
@@ -131,10 +125,8 @@ fn decode(
     out
 }
 
-/// Checks the MVC output of `packets` against the base view's: the same
-/// frames in the same order with the same timestamps, one packed frame per
-/// access unit side by side, and separately each base frame followed by
-/// the non-base frame of its access unit (when `has_second(pts)`).
+/// Checks the MVC output of `packets` against the base view's, packed and
+/// as separate views (a non-base frame when `has_second(pts)`).
 fn check(
     what: &str,
     params: &[&[u8]],
@@ -195,8 +187,7 @@ fn drained_mid_gop(name: &str, cuts: impl Iterator<Item = usize>) {
 
 #[test]
 fn drained_mid_gop_outputs_in_order() {
-    // Hierarchical B pictures, 9 access units: output order 0 8 4 2 6 1 3 5 7
-    // of decoding order, so every cut leaves pictures waiting in the DPB.
+    // Hierarchical B pictures: output order 0 8 4 2 6 1 3 5 7.
     drained_mid_gop("MVCDS-4.264", 1..=9);
     // An I picture every 4 access units: every place in that pattern, twice
     // (kept short for instrumented scalar builds).
@@ -242,9 +233,8 @@ fn seek_into_split_access_units() {
         .enumerate()
         .map(|(i, p)| (i as i64, p))
         .collect();
-    // From packet 10, seek to the I picture of access unit 15 (POC 16),
-    // which starts with the non-base view of access unit 14: it cannot be
-    // decoded without its base view and is not output.
+    // Seek to the I picture of access unit 15, whose packet starts with the
+    // non-base view of access unit 14.
     for end in [16, 19, 21, 27] {
         let mut p = packets[..10].to_vec();
         p.extend(packets[15..end].iter().cloned());

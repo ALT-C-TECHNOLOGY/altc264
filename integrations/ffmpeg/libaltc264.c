@@ -40,11 +40,8 @@ static const uint8_t plane_offsets_uuid[16] = {
     0x9b, 0x52, 0x6c, 0x21, 0x64, 0x70, 0x6c, 0x6f,
 };
 
-/* The properties (timestamps, duration, side data, flags, opaque) of the
- * last packets sent, by sequence number: altc264 returns the number of the
- * packet that started each picture's access unit as its timestamp, through
- * reordering. More packets than pictures the decoder holds at once (its
- * DPB and frame threads). */
+/* Properties of the last packets sent, by sequence number, which is
+ * passed to altc264 as the pts. More than the pictures it holds at once. */
 #define NB_PACKET_PROPS 1024
 
 typedef struct LibAltc264Context {
@@ -147,8 +144,7 @@ static int output_picture(AVCodecContext *avctx, AVFrame *frame, Altc264Picture 
         return ret;
     av_image_copy(frame->data, frame->linesize, src, src_stride,
                   avctx->pix_fmt, p->width, p->height);
-    /* The packet that started the picture's access unit, unless so many
-     * have followed that its properties are gone. */
+    /* Unless its slot has been reused. */
     if (p->has_pts && (uint64_t)p->pts < s->next_packet &&
         s->next_packet - (uint64_t)p->pts <= NB_PACKET_PROPS) {
         ret = ff_decode_frame_props_from_pkt(avctx, frame,

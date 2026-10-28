@@ -306,10 +306,7 @@ struct SliceJob {
     new_picture: bool,
     /// Access unit number, shared by the views of an access unit.
     au: u64,
-    /// Output period of the access unit: it goes up at each access unit
-    /// with an IDR picture or a memory_management_control_operation 5,
-    /// which output every earlier picture first (C.4.4). Within a period,
-    /// pictures are output in PicOrderCnt order.
+    /// Output period: incremented at an IDR access unit or mmco 5 (C.4.4).
     period: u64,
     view_id: u16,
     pts: Option<i64>,
@@ -956,11 +953,8 @@ fn keep_free<T>(list: &mut Vec<Arc<T>>, x: &Arc<T>) {
     list.push(x.clone());
 }
 
-/// The place of a view's frame in output order. Every view outputs its
-/// pictures in PicOrderCnt order within an output period (C.4.5.3), and
-/// the view components of an access unit have the same PicOrderCnt (G.8.1),
-/// so the frames of an access unit share it; the access unit, in decoding
-/// order, tells apart pictures with the same order count.
+/// Place in output order: PicOrderCnt within an output period (C.4.5.3),
+/// the same for every view of an access unit (G.8.1).
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct OutputOrder {
     period: u64,
@@ -972,7 +966,7 @@ struct OutputOrder {
 struct ViewFrame {
     voidx: usize,
     order: OutputOrder,
-    /// The access unit decoded when the DPB output it.
+    /// The access unit decoded when the frame was output.
     out_au: u64,
     frame: Frame,
 }
@@ -1548,7 +1542,6 @@ impl ViewDecoder {
                 frame: to_frame(o, self.voidx, offsets),
             });
         }
-        // Pictures output, or no longer stored, are done with.
         let dpb = &self.dpb;
         self.periods.retain(|&(au, _)| dpb.holds(au));
     }
@@ -1589,8 +1582,7 @@ impl Drop for Decoder {
     }
 }
 
-/// Access units a view's frame waits for the other views before it is
-/// output anyway (see `next_frame`).
+/// Access units a frame waits for a missing view (see `next_frame`).
 const MAX_PENDING: u64 = 32;
 
 pub struct Decoder {
@@ -1617,8 +1609,7 @@ pub struct Decoder {
     frames_rx: Receiver<ViewFrame>,
     /// Per view, its frames not yet output, in its output order.
     pending: Vec<VecDeque<ViewFrame>>,
-    /// The access unit / MAX_PENDING at the last check for frames waiting
-    /// too long (see `next_frame`).
+    /// au / MAX_PENDING at the last check for overdue frames.
     checkpoint: u64,
     /// Per view, the last access unit with a picture of it.
     pic_au: Vec<u64>,
@@ -1626,8 +1617,8 @@ pub struct Decoder {
     /// the access unit that started it.
     period: u64,
     period_au: u64,
-    /// Frames in output order, decided but not yet returned: one view's,
-    /// or (stereo_layout) an access unit's base and non-base view to pack.
+    /// Frames in output order: one view's, or (stereo_layout) the base and
+    /// non-base view of an access unit to pack.
     ready: VecDeque<[Option<Frame>; 2]>,
     flushed: bool,
     threads: usize,
@@ -1650,10 +1641,9 @@ pub struct Decoder {
     pub frame_threading: bool,
     jobs: Option<Option<Arc<JobQueue>>>,
     pts: Option<i64>,
-    /// The timestamp of the current access unit: the one set when its base
-    /// view picture started.
+    /// Timestamp of the current access unit.
     au_pts: Option<i64>,
-    /// A base view picture has started since the start or the last seek.
+    /// A base view picture has started since the start or last discard.
     base_started: bool,
 }
 
@@ -1805,9 +1795,8 @@ impl Decoder {
         &mut self.workers[voidx]
     }
 
-    /// Sets the timestamp attached to access units that start from now on
-    /// (for example the PTS of the next container packet): every view of an
-    /// access unit has the timestamp set when its base view picture started.
+    /// Sets the timestamp of access units that start from now on (for
+    /// example the PTS of the next container packet).
     pub fn set_timestamp(&mut self, pts: Option<i64>) {
         self.pts = pts;
     }
@@ -1894,12 +1883,8 @@ impl Decoder {
 
     fn slice(&mut self, h: NalHeader, rbsp: Vec<u8>) {
         let ext_nal = h.nal_type == NalType::SliceExtension;
-        // A non-base view component belongs to the access unit of the base
-        // view picture before it (a slice extension does not start one,
-        // 7.4.1.2.3). Before the first, where decoding started part-way
-        // through an access unit (a seek into a container that stores the
-        // views of one in two packets), its base view is missing: it is
-        // not decoded.
+        // A slice extension belongs to the access unit of the preceding
+        // base view picture (7.4.1.2.3); without one it cannot be decoded.
         if ext_nal && !self.base_started {
             return;
         }
@@ -1953,9 +1938,7 @@ impl Decoder {
                 self.pic_au.resize(voidx + 1, 0);
             }
             self.pic_au[voidx] = self.au;
-            // An IDR access unit (non_idr_flag is the same in all its view
-            // components, G.7.4.1.1) or mmco 5 outputs every picture before
-            // it and starts the order counts again (C.4.4): a new period.
+            // non_idr_flag is the same in all view components (G.7.4.1.1).
             let mmco5 = matches!(&header.dec_ref_pic_marking,
                 Some(DecRefPicMarking::Adaptive(ops)) if ops.contains(&Mmco::ForgetAll));
             if (header.idr || mmco5) && self.period_au != self.au {
@@ -1991,8 +1974,6 @@ impl Decoder {
             au: self.au,
             period: self.period,
             view_id,
-            // Every view of an access unit has its timestamp, wherever the
-            // container put the non-base views.
             pts: self.au_pts,
             publish,
             earlier_views,
@@ -2029,7 +2010,6 @@ impl Decoder {
     pub fn flush(&mut self) {
         self.cur_view = None;
         self.flushed = true;
-        // Pictures decoded after this, which start again, follow those before.
         self.period += 1;
         self.period_au = self.au;
         for w in &mut self.workers {
@@ -2048,24 +2028,13 @@ impl Decoder {
 
     /// The next frame in output order. With several views, the views of an
     /// access unit are returned together, in view order.
-    ///
-    /// The views' frames are merged in output order: next is the earliest
-    /// first waiting frame of a view, with those of the other views in the
-    /// same place, which are of the same access unit. It is output once
-    /// every other view has a frame waiting (each view's come in its output
-    /// order, so none earlier will come), or the stream has ended. Which
-    /// frames have arrived from view threads depends on timing; the output
-    /// must not: the other rules are applied only once the view decoders
-    /// have handled all input so far, as they always have without threads.
     pub fn next_frame(&mut self) -> Option<Frame> {
         let views = self.last.len().max(1);
         if let Some(f) = self.receive(views) {
             return Some(f);
         }
-        // Every MAX_PENDING access units, with the view decoders synced: a
-        // frame that has waited that long since its DPB output it, for a
-        // view with pictures but no frames (damaged streams), is output
-        // without it.
+        // Damaged streams: a frame waiting MAX_PENDING access units for a
+        // view is output without it.
         if views > 1 && self.au / MAX_PENDING != self.checkpoint {
             self.checkpoint = self.au / MAX_PENDING;
             self.sync_workers();
@@ -2095,9 +2064,11 @@ impl Decoder {
         }
     }
 
-    /// Moves the frames whose place in output order is decided to `ready`
-    /// (see `next_frame`). `synced`: the view decoders have handled all input
-    /// so far, at a check for frames waiting too long.
+    /// Moves frames to `ready` in output order: the earliest first frame of
+    /// the views, with the other views' frames of its access unit, once each
+    /// view has a frame waiting or will have none for it. Rules that depend
+    /// on what the view threads have sent apply only after `sync_workers`,
+    /// so the output does not depend on thread timing.
     fn merge(&mut self, views: usize, synced: bool) {
         let overdue = synced;
         let mut synced = synced;
