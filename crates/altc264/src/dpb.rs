@@ -1080,6 +1080,11 @@ impl Dpb {
         self.last_field = None;
     }
 
+    /// Whether a picture of access unit `au` is stored.
+    pub(crate) fn holds(&self, au: u64) -> bool {
+        self.pics.iter().any(|p| p.out.au == au)
+    }
+
     /// Outputs every picture still waiting (end of stream).
     pub fn flush(&mut self) {
         while self.bump() {}

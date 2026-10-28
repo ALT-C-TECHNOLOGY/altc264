@@ -306,6 +306,11 @@ struct SliceJob {
     new_picture: bool,
     /// Access unit number, shared by the views of an access unit.
     au: u64,
+    /// Output period of the access unit: it goes up at each access unit
+    /// with an IDR picture or a memory_management_control_operation 5,
+    /// which output every earlier picture first (C.4.4). Within a period,
+    /// pictures are output in PicOrderCnt order.
+    period: u64,
     view_id: u16,
     pts: Option<i64>,
     /// With new_picture: where this picture is published for the views
@@ -404,6 +409,8 @@ struct CurrentPicture {
     slices: u32,
     filters: Vec<SliceFilter>,
     out: OutputInfo,
+    /// Output period of the access unit (SliceJob::period).
+    period: u64,
     meta: Option<GopMeta>,
     /// Slices waiting to be decoded when the picture is complete.
     pending: Vec<PendingSlice>,
@@ -949,6 +956,27 @@ fn keep_free<T>(list: &mut Vec<Arc<T>>, x: &Arc<T>) {
     list.push(x.clone());
 }
 
+/// The place of a view's frame in output order. Every view outputs its
+/// pictures in PicOrderCnt order within an output period (C.4.5.3), and
+/// the view components of an access unit have the same PicOrderCnt (G.8.1),
+/// so the frames of an access unit share it; the access unit, in decoding
+/// order, tells apart pictures with the same order count.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct OutputOrder {
+    period: u64,
+    poc: i32,
+    au: u64,
+}
+
+/// A frame a view decoder has output.
+struct ViewFrame {
+    voidx: usize,
+    order: OutputOrder,
+    /// The access unit decoded when the DPB output it.
+    out_au: u64,
+    frame: Frame,
+}
+
 /// Decodes the pictures of one view (one view order index).
 struct ViewDecoder {
     voidx: usize,
@@ -967,8 +995,12 @@ struct ViewDecoder {
     inter_view: Vec<(u16, RefPic)>,
     next_id: Arc<AtomicU32>,
     errors: Arc<Errors>,
-    /// Output frames as (view order index, access unit, frame).
-    frames: Sender<(usize, u64, Frame)>,
+    /// Output frames.
+    frames: Sender<ViewFrame>,
+    /// The access unit of the last picture decoded.
+    last_au: u64,
+    /// (access unit, output period) of the pictures not yet output.
+    periods: Vec<(u64, u64)>,
     /// Offset metadata of the GOP being decoded.
     gop: Option<GopMeta>,
     /// (GOP, display index) of the last output frame.
@@ -1006,6 +1038,7 @@ impl ViewDecoder {
                 // waiting on it must end) but not output; nor is anything
                 // its storing would bump.
                 self.dpb.discard();
+                self.periods.clear();
                 self.skip_before = Some(i32::MAX);
                 self.finish_picture();
                 self.dpb.discard();
@@ -1235,6 +1268,7 @@ impl ViewDecoder {
                 au: job.au,
                 ..output_info(sps, job.view_id)
             },
+            period: job.period,
             meta: self.gop.clone(),
             pending: Vec::new(),
             conceal: None,
@@ -1426,6 +1460,8 @@ impl ViewDecoder {
         if c.ref_idc != 0 {
             self.prev_ref_frame_num = if mmco5 { 0 } else { c.first.frame_num };
         }
+        self.last_au = c.out.au;
+        self.periods.push((c.out.au, c.period));
         self.dpb.store(
             entry,
             c.ref_idc,
@@ -1496,11 +1532,25 @@ impl ViewDecoder {
             if o.out.hidden {
                 continue;
             }
-            let au = o.out.au;
-            let _ = self
-                .frames
-                .send((self.voidx, au, to_frame(o, self.voidx, offsets)));
+            let order = OutputOrder {
+                period: self
+                    .periods
+                    .iter()
+                    .find(|p| p.0 == o.out.au)
+                    .map_or(0, |p| p.1),
+                poc: o.poc,
+                au: o.out.au,
+            };
+            let _ = self.frames.send(ViewFrame {
+                voidx: self.voidx,
+                order,
+                out_au: self.last_au,
+                frame: to_frame(o, self.voidx, offsets),
+            });
         }
+        // Pictures output, or no longer stored, are done with.
+        let dpb = &self.dpb;
+        self.periods.retain(|&(au, _)| dpb.holds(au));
     }
 }
 
@@ -1539,9 +1589,9 @@ impl Drop for Decoder {
     }
 }
 
-/// Access units waiting for a view before one is output anyway (see
-/// `next_frame`).
-const MAX_PENDING: usize = 32;
+/// Access units a view's frame waits for the other views before it is
+/// output anyway (see `next_frame`).
+const MAX_PENDING: u64 = 32;
 
 pub struct Decoder {
     sps: Vec<Option<Arc<Sps>>>,
@@ -1563,16 +1613,22 @@ pub struct Decoder {
     au_views: Vec<(u16, Arc<PicSlot>)>,
     next_id: Arc<AtomicU32>,
     errors: Arc<Errors>,
-    frames_tx: Sender<(usize, u64, Frame)>,
-    frames_rx: Receiver<(usize, u64, Frame)>,
-    /// Frames waiting for the other views of their access unit, in access
-    /// unit order.
-    pending: VecDeque<(u64, Vec<Option<Frame>>)>,
-    /// Per view, the access unit of its last output frame.
-    view_au: Vec<u64>,
+    frames_tx: Sender<ViewFrame>,
+    frames_rx: Receiver<ViewFrame>,
+    /// Per view, its frames not yet output, in its output order.
+    pending: Vec<VecDeque<ViewFrame>>,
+    /// The access unit / MAX_PENDING at the last check for frames waiting
+    /// too long (see `next_frame`).
+    checkpoint: u64,
     /// Per view, the last access unit with a picture of it.
     pic_au: Vec<u64>,
-    ready: VecDeque<Frame>,
+    /// Output period of the current access unit (SliceJob::period), and
+    /// the access unit that started it.
+    period: u64,
+    period_au: u64,
+    /// Frames in output order, decided but not yet returned: one view's,
+    /// or (stereo_layout) an access unit's base and non-base view to pack.
+    ready: VecDeque<[Option<Frame>; 2]>,
     flushed: bool,
     threads: usize,
     rbsp: Vec<u8>,
@@ -1645,9 +1701,11 @@ impl Decoder {
             errors: Arc::new(Errors::default()),
             frames_tx,
             frames_rx,
-            pending: VecDeque::new(),
-            view_au: Vec::new(),
+            pending: Vec::new(),
+            checkpoint: 0,
             pic_au: Vec::new(),
+            period: 0,
+            period_au: 0,
             ready: VecDeque::new(),
             flushed: false,
             threads,
@@ -1700,6 +1758,8 @@ impl Decoder {
                 frames: self.frames_tx.clone(),
                 gop: None,
                 out_pos: (0, 0),
+                last_au: 0,
+                periods: Vec::new(),
                 skip_before: None,
                 started: false,
                 pool: (self.threads > 1).then(|| Pool::new(self.threads - 1)),
@@ -1874,6 +1934,15 @@ impl Decoder {
                 self.pic_au.resize(voidx + 1, 0);
             }
             self.pic_au[voidx] = self.au;
+            // An IDR access unit (non_idr_flag is the same in all its view
+            // components, G.7.4.1.1) or mmco 5 outputs every picture before
+            // it and starts the order counts again (C.4.4): a new period.
+            let mmco5 = matches!(&header.dec_ref_pic_marking,
+                Some(DecRefPicMarking::Adaptive(ops)) if ops.contains(&Mmco::ForgetAll));
+            if (header.idr || mmco5) && self.period_au != self.au {
+                self.period += 1;
+                self.period_au = self.au;
+            }
         }
         let earlier_views = self
             .au_views
@@ -1901,6 +1970,7 @@ impl Decoder {
             subset,
             new_picture,
             au: self.au,
+            period: self.period,
             view_id,
             pts: self.pts,
             publish,
@@ -1924,7 +1994,7 @@ impl Decoder {
         self.cur_view = None;
         self.prefix = None;
         self.au_views.clear();
-        self.pending.clear();
+        self.pending.iter_mut().for_each(VecDeque::clear);
         self.ready.clear();
         self.flushed = false;
         self.pts = None;
@@ -1936,6 +2006,9 @@ impl Decoder {
     pub fn flush(&mut self) {
         self.cur_view = None;
         self.flushed = true;
+        // Pictures decoded after this, which start again, follow those before.
+        self.period += 1;
+        self.period_au = self.au;
         for w in &mut self.workers {
             w.send(Msg::Flush);
         }
@@ -1952,49 +2025,97 @@ impl Decoder {
 
     /// The next frame in output order. With several views, the views of an
     /// access unit are returned together, in view order.
+    ///
+    /// The views' frames are merged in output order: next is the earliest
+    /// first waiting frame of a view, with those of the other views in the
+    /// same place, which are of the same access unit. It is output once
+    /// every other view has a frame waiting (each view's come in its output
+    /// order, so none earlier will come), or the stream has ended. Which
+    /// frames have arrived from view threads depends on timing; the output
+    /// must not: the other rules are applied only once the view decoders
+    /// have handled all input so far, as they always have without threads.
     pub fn next_frame(&mut self) -> Option<Frame> {
         let views = self.last.len().max(1);
         if let Some(f) = self.receive(views) {
             return Some(f);
         }
-        let mut synced = false;
-        loop {
-            if let Some(f) = self.ready.front() {
-                return self.take(f).then(|| self.ready.pop_front()).flatten();
+        // Every MAX_PENDING access units, with the view decoders synced: a
+        // frame that has waited that long since its DPB output it, for a
+        // view with pictures but no frames (damaged streams), is output
+        // without it.
+        if views > 1 && self.au / MAX_PENDING != self.checkpoint {
+            self.checkpoint = self.au / MAX_PENDING;
+            self.sync_workers();
+            self.receive(views);
+            self.merge(views, true);
+        } else {
+            self.merge(views, false);
+        }
+        let front = self.ready.front()?;
+        if !front.iter().flatten().all(|f| self.take(f)) {
+            return None;
+        }
+        let [a, b] = self.ready.pop_front()?;
+        match (self.stereo_layout, b) {
+            (Some(layout), b) if views >= 2 => {
+                // A missing view repeats the other.
+                let base = a.as_ref().or(b.as_ref())?;
+                let dep = b.as_ref().unwrap_or(base);
+                let (l, r) = if self.base_view_right {
+                    (dep, base)
+                } else {
+                    (base, dep)
+                };
+                Some(crate::stereo::pack(l, r, layout, base))
             }
-            let (au, front) = self.pending.front()?;
-            let mut ok = self.releasable(*au, front, views);
-            if !ok && self.pending.len() > MAX_PENDING {
-                // A view with pictures but no frames for a long while
-                // (damaged streams). Whether its frames have arrived must
-                // not depend on thread timing: once the view decoders have
-                // handled all input so far, what is missing will not come.
-                if !synced {
+            (_, b) => a.or(b),
+        }
+    }
+
+    /// Moves the frames whose place in output order is decided to `ready`
+    /// (see `next_frame`). `synced`: the view decoders have handled all input
+    /// so far, at a check for frames waiting too long.
+    fn merge(&mut self, views: usize, synced: bool) {
+        let overdue = synced;
+        let mut synced = synced;
+        let first = |q: &VecDeque<ViewFrame>| q.front().map(|f| f.order);
+        while let Some(order) = self.pending.iter().filter_map(first).min() {
+            let waiting = |v: usize| self.pending.get(v).is_some_and(|q| !q.is_empty());
+            // A view with no picture in the access unit or since.
+            let none =
+                |v: usize| self.au > order.au && self.pic_au.get(v).is_none_or(|&a| a < order.au);
+            let ok = self.flushed
+                || (0..views).all(|v| waiting(v) || synced && none(v))
+                || overdue
+                    && self
+                        .pending
+                        .iter()
+                        .filter_map(VecDeque::front)
+                        .any(|f| f.order == order && f.out_au + MAX_PENDING <= self.au);
+            if !ok {
+                if !synced && (0..views).all(|v| waiting(v) || none(v)) {
                     self.sync_workers();
+                    self.receive(views);
                     synced = true;
-                    if let Some(f) = self.receive(views) {
-                        return Some(f);
-                    }
                     continue;
                 }
-                ok = true;
+                return;
             }
-            if !ok || !front.iter().flatten().all(|f| self.take(f)) {
-                return None;
-            }
-            let (_, group) = self.pending.pop_front()?;
-            match self.stereo_layout {
-                Some(layout) if views >= 2 => {
-                    // A missing view repeats the other.
-                    let mut views = group.into_iter();
-                    let (base, dep) = (views.next().flatten(), views.next().flatten());
-                    if let Some(b) = base.as_ref().or(dep.as_ref()) {
-                        let d = dep.as_ref().unwrap_or(b);
-                        let (l, r) = if self.base_view_right { (d, b) } else { (b, d) };
-                        self.ready.push_back(crate::stereo::pack(l, r, layout, b));
-                    }
-                }
-                _ => self.ready.extend(group.into_iter().flatten()),
+            let group: Vec<Option<Frame>> = self
+                .pending
+                .iter_mut()
+                .map(|q| {
+                    let at = first(q) == Some(order);
+                    at.then(|| q.pop_front().map(|f| f.frame)).flatten()
+                })
+                .collect();
+            if self.stereo_layout.is_some() && views >= 2 {
+                let mut views = group.into_iter();
+                let (base, dep) = (views.next().flatten(), views.next().flatten());
+                self.ready.push_back([base, dep]);
+            } else {
+                self.ready
+                    .extend(group.into_iter().flatten().map(|f| [Some(f), None]));
             }
         }
     }
@@ -2009,42 +2130,21 @@ impl Decoder {
         f.decoded()
     }
 
-    /// Takes the frames the view decoders have output into their access
-    /// unit groups; with one view, returns a frame that needs no group.
+    /// Takes the frames the view decoders have output into the views'
+    /// queues; with one view, returns a frame that needs no merging.
     fn receive(&mut self, views: usize) -> Option<Frame> {
-        while let Ok((voidx, au, frame)) = self.frames_rx.try_recv() {
-            if views == 1 && self.pending.is_empty() && self.ready.is_empty() && self.take(&frame) {
-                return Some(frame);
+        while let Ok(f) = self.frames_rx.try_recv() {
+            if views == 1
+                && self.pending.iter().all(VecDeque::is_empty)
+                && self.ready.is_empty()
+                && self.take(&f.frame)
+            {
+                return Some(f.frame);
             }
-            // A view outputs in access unit order, but a damaged stream
-            // can make one output a picture early: its later frames count
-            // as of that access unit then, so none goes back to a group
-            // that may have been output (which depends on timing).
-            if self.view_au.len() <= voidx {
-                self.view_au.resize(voidx + 1, 0);
+            if self.pending.len() <= f.voidx {
+                self.pending.resize_with(f.voidx + 1, VecDeque::new);
             }
-            let au = au.max(self.view_au[voidx]);
-            self.view_au[voidx] = au;
-            // A second frame of a view in one access unit (damaged streams)
-            // gets a group of its own rather than replacing the first.
-            let free = |(a, g): &(u64, Vec<Option<Frame>>)| {
-                *a == au && g.get(voidx).is_none_or(Option::is_none)
-            };
-            // Groups stay in access unit order: a view with a frame in a
-            // later group has moved on (releasable).
-            let i = match self.pending.iter().position(free) {
-                Some(i) => i,
-                None => {
-                    let i = self.pending.partition_point(|(a, _)| *a <= au);
-                    self.pending.insert(i, (au, Vec::new()));
-                    i
-                }
-            };
-            let group = &mut self.pending[i].1;
-            if group.len() <= voidx {
-                group.resize_with(voidx + 1, || None);
-            }
-            group[voidx] = Some(frame);
+            self.pending[f.voidx].push_back(f);
         }
         None
     }
@@ -2059,23 +2159,6 @@ impl Decoder {
                 }
             }
         }
-    }
-
-    /// Whether the oldest pending access unit, `au`, can be output: every
-    /// view has delivered its frame, has moved on to a later access unit
-    /// (views output in access unit order, so a missing frame will not
-    /// come), or had no picture in it; or the stream has ended.
-    fn releasable(&self, au: u64, group: &[Option<Frame>], views: usize) -> bool {
-        self.flushed
-            || (0..views).all(|v| {
-                group.get(v).is_some_and(Option::is_some)
-                    || self
-                        .pending
-                        .iter()
-                        .skip(1)
-                        .any(|(_, g)| g.get(v).is_some_and(Option::is_some))
-                    || self.au > au && self.pic_au.get(v).is_none_or(|&a| a < au)
-            })
     }
 }
 
