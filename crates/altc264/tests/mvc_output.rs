@@ -86,7 +86,8 @@ enum Views {
 }
 
 /// Decodes `packets` (timestamp, NAL units), with a seek (Decoder::discard)
-/// before the packet at each index in `seeks`, and drains the decoder.
+/// before the packet at each index in `seeks`, and drains the decoder: the
+/// frames after the last seek.
 fn decode(
     params: &[&[u8]],
     packets: &[(i64, Vec<&[u8]>)],
@@ -115,6 +116,8 @@ fn decode(
     for (i, (pts, nals)) in packets.iter().enumerate() {
         if seeks.contains(&i) {
             dec.discard();
+            // Which frames were ready before the seek depends on timing.
+            out.clear();
         }
         dec.set_timestamp(Some(*pts));
         for nal in nals {
@@ -220,6 +223,36 @@ fn views_of_an_access_unit_share_its_timestamp() {
             &params,
             &packets[..n],
             &[],
+            |pts| pts != last,
+        );
+    }
+}
+
+#[test]
+fn seek_into_split_access_units() {
+    let Some(data) = stream("MVCDS2.264") else {
+        eprintln!("conformance streams not downloaded; skipping");
+        return;
+    };
+    let aus = access_units(&data);
+    let params = parameter_sets(&aus);
+    let packets: Vec<(i64, Vec<&[u8]>)> = mkvmerge_packets(&aus)
+        .into_iter()
+        .enumerate()
+        .map(|(i, p)| (i as i64, p))
+        .collect();
+    // From packet 10, seek to the I picture of access unit 15 (POC 16),
+    // which starts with the non-base view of access unit 14: it cannot be
+    // decoded without its base view and is not output.
+    for end in [16, 21, 33, 60] {
+        let mut p = packets[..10].to_vec();
+        p.extend(packets[15..end].iter().cloned());
+        let last = end as i64 - 1;
+        check(
+            &format!("seek to packet 15, drained after {end}"),
+            &params,
+            &p,
+            &[10],
             |pts| pts != last,
         );
     }

@@ -1653,6 +1653,8 @@ pub struct Decoder {
     /// The timestamp of the current access unit: the one set when its base
     /// view picture started.
     au_pts: Option<i64>,
+    /// A base view picture has started since the start or the last seek.
+    base_started: bool,
 }
 
 impl Default for Decoder {
@@ -1721,6 +1723,7 @@ impl Decoder {
             jobs: None,
             pts: None,
             au_pts: None,
+            base_started: false,
         }
     }
 
@@ -1891,6 +1894,15 @@ impl Decoder {
 
     fn slice(&mut self, h: NalHeader, rbsp: Vec<u8>) {
         let ext_nal = h.nal_type == NalType::SliceExtension;
+        // A non-base view component belongs to the access unit of the base
+        // view picture before it (a slice extension does not start one,
+        // 7.4.1.2.3). Before the first, where decoding started part-way
+        // through an access unit (a seek into a container that stores the
+        // views of one in two packets), its base view is missing: it is
+        // not decoded.
+        if ext_nal && !self.base_started {
+            return;
+        }
         let mut used = None;
         let parsed = SliceHeader::parse(&rbsp, &h, |id| {
             let pps = self.pps[id as usize].as_ref()?;
@@ -1935,6 +1947,7 @@ impl Decoder {
                 self.au += 1;
                 self.au_views.clear();
                 self.au_pts = self.pts;
+                self.base_started = true;
             }
             if self.pic_au.len() <= voidx {
                 self.pic_au.resize(voidx + 1, 0);
@@ -2007,6 +2020,7 @@ impl Decoder {
         self.flushed = false;
         self.pts = None;
         self.au_pts = None;
+        self.base_started = false;
         // Access units after the seek are told apart from those before.
         self.au += 1;
     }
